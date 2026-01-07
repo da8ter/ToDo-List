@@ -1,0 +1,14 @@
+{
+  "id": "{E0E38D9B-31BC-4F5E-A6CA-91A2A60C7C46}",
+  "name": "ToDo List",
+  "type": 3,
+  "vendor": "",
+  "aliases": [
+    "ToDo List"
+  ],
+  "url": "",
+  "parentRequirements": [],
+  "childRequirements": [],
+  "implemented": [],
+  "prefix": "TDL"
+}

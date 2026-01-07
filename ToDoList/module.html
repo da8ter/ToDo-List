@@ -1,0 +1,782 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <script src="/icons.js"></script>
+  <style>
+    :root {
+      --bg: var(--card-color);
+      --card: var(--card-color);
+      --text: var(--content-color,);
+      --muted: color-mix(in srgb, var(--content-color) 30%, transparent);
+      --border: color-mix(in srgb, var(--accent-color) 30%, transparent);
+      --accent: var(--accent-color);
+      --radius: 14px;
+      --gap: 12px;
+    }
+    html, body { height: 90%; }
+    body {
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: transparent;
+    }
+    .wrap {
+      position: relative;
+      height: 100%;
+      min-height: 0;
+      padding: 0;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+      overflow: hidden;
+    }
+    .add {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .add .full { grid-column: 1 / -1; }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      padding: 0;
+      box-sizing: border-box;
+      backdrop-filter: blur(6px);
+      display: none;
+      flex-direction: column;
+      gap: var(--gap);
+      z-index: 1000;
+    }
+    #overlay {
+      background: var(--bg);
+      backdrop-filter: none;
+    }
+    .overlay.open { display: flex; }
+    .overlay-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: var(--gap);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .detail-card {
+      max-height: 100%;
+      overflow: auto;
+    }
+    .detail-title {
+      font-weight: 700;
+      font-size: 16px;
+      overflow-wrap: anywhere;
+    }
+    .detail-info {
+      color: var(--text );
+      font-size: 13px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .detail-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    .overlay-title {
+      font-weight: 700;
+    }
+    .overlay-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .overlay-actions button { flex: 1; }
+    .checkrow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text);
+      font-size: 13px;
+      user-select: none;
+    }
+    .checkrow input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      margin: 0;
+      padding: 0;
+      flex: 0 0 auto;
+    }
+    input:not([type="checkbox"]), select {
+      width: 100%;
+      box-sizing: border-box;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      padding: 10px 12px;
+      background: var(--bg);
+      color: var(--text);
+      outline: none;
+    }
+    button {
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      padding: 10px 12px;
+      background: var(--card);
+      color: var(--text);
+      cursor: pointer;
+      transition: transform .04s ease, border-color .12s ease;
+      white-space: nowrap;
+    }
+    button:active { transform: scale(.98); }
+    button.primary { border-color: var(--accent); background-color: var(--accent); }
+
+    .list {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      overflow: auto;
+      scrollbar-width: none;
+    }
+    .list::-webkit-scrollbar { display: none; }
+
+    .item {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--gap);
+      padding: var(--gap);
+      border-radius: var(--radius);
+      background: var(--card);
+      border: 1px solid var(--border);
+    }
+    .item .main {
+      display: flex;
+      align-items: center;
+      gap: var(--gap);
+      flex: 1 1 200px;
+      min-width: 0;
+    }
+    .item .actions {
+      display: flex;
+      align-items: center;
+      gap: var(--gap);
+      flex-shrink: 0;
+      margin-left: auto;
+    }
+    .item .chk {
+      flex-shrink: 0;
+      width: 18px;
+      height: 18px;
+      margin: 0;
+    }
+    .item .content {
+      flex: 1;
+      min-width: 0;
+    }
+    .title {
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .info {
+      color: var(--text);
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .item .meta {
+      flex-shrink: 0;
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .badge {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .badge.high, .badge.normal, .badge.low {
+      display: inline-flex;
+      justify-content: center;
+      min-width: 60px;
+    }
+    .badge.high { border-color: rgb(255, 0, 0); color: var(--text); background-color: rgb(255, 0, 0, 0.2);}
+    .badge.low { border-color: rgba(200,200,200,.25);  color: var(--text); background-color: rgb(200,200,200, 0.2);}
+    .badge.normal { border-color: var(--accent-color); color: var(--text);  background-color: color-mix(in srgb, var(--accent-color) 30%, transparent);}
+    .badge.quantity { border-color: var(--accent-color); font-weight: 700; color: var(--accent);}
+    .item .del {
+      flex-shrink: 0;
+      padding: 6px 10px;
+      font-size: 12px;
+    }
+    .item .edit {
+      flex-shrink: 0;
+      padding: 6px 10px;
+      font-size: 12px;
+    }
+    .item .icon-btn {
+      padding: 0;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .item .drag-handle {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      cursor: grab;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+    }
+    .item .drag-handle:active { cursor: grabbing; }
+    .item .drag-handle i {
+      color: var(--muted);
+      font-size: 16px;
+      pointer-events: none;
+    }
+    .item.dragging {
+      background: var(--accent);
+      z-index: 10;
+    }
+    .item.drag-over {
+      outline: 0px dashed var(--accent);
+      outline-offset: 0px;
+    }
+    .done { opacity: .5; }
+    .done .title { text-decoration: line-through; }
+    .empty { color: var(--muted); padding: 10px; }
+    .section-header {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      padding: 8px 4px 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .stats {
+      display: flex;
+      gap: var(--gap);
+      margin-bottom: var(--gap);
+    }
+    .stat-box {
+      flex: 1;
+      padding: 12px 8px;
+      border-radius: var(--radius);
+      background: var(--card);
+      border: 1px solid var(--border);
+      text-align: center;
+    }
+    .stat-box .label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .stat-box .value {
+      font-size: 28px;
+      font-weight: 700;
+    }
+    .stat-open .label, .stat-open .value { color: var(--accent); }
+    .stat-overdue .label, .stat-overdue .value { color: #ff5a5a; }
+    .stat-today .label, .stat-today .value { color: #ffa500; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="stats">
+      <div class="stat-box stat-open">
+        <div class="label" id="statOpenLabel"></div>
+        <div class="value" id="statOpenValue">0</div>
+      </div>
+      <div class="stat-box stat-overdue">
+        <div class="label" id="statOverdueLabel"></div>
+        <div class="value" id="statOverdueValue">0</div>
+      </div>
+      <div class="stat-box stat-today">
+        <div class="label" id="statTodayLabel"></div>
+        <div class="value" id="statTodayValue">0</div>
+      </div>
+    </div>
+    <button id="newBtn" class="primary"> </button>
+
+    <div id="list" class="list"></div>
+
+    <div id="overlay" class="overlay">
+      <div class="overlay-card">
+        <div id="formTitle" class="overlay-title"></div>
+        <div class="add">
+          <input id="title" type="text" class="full" />
+          <input id="info" type="text" class="full" />
+          <label class="full checkrow"><input id="notification" type="checkbox" /><span id="notificationLabel"></span></label>
+          <input id="quantity" type="number" min="0" style="width:80px" />
+          <input id="due" type="datetime-local" />
+          <select id="prio">
+            <option value="low"></option>
+            <option value="normal" selected></option>
+            <option value="high"></option>
+          </select>
+        </div>
+        <div class="overlay-actions">
+          <button id="cancelBtn"></button>
+          <button id="addBtn" class="primary"></button>
+        </div>
+      </div>
+    </div>
+
+    <div id="detailOverlay" class="overlay">
+      <div class="overlay-card detail-card">
+        <div id="detailHeader" class="overlay-title"></div>
+        <div id="detailTaskTitle" class="detail-title"></div>
+        <div id="detailTaskInfo" class="detail-info"></div>
+        <div id="detailMeta" class="detail-meta"></div>
+        <div class="overlay-actions">
+          <button id="detailCloseBtn" class="primary"></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let state = { items: [] };
+    let editingId = 0;
+    let dragItem = null;
+    let dragGroup = '';
+    let dndBound = false;
+
+    function initTexts() {
+      document.getElementById('title').placeholder = translate('Title');
+      document.getElementById('info').placeholder = translate('Info');
+      document.getElementById('notificationLabel').textContent = translate('Notification');
+      document.getElementById('quantity').placeholder = translate('Quantity');
+      document.getElementById('statOpenLabel').textContent = translate('Open Tasks');
+      document.getElementById('statOverdueLabel').textContent = translate('Overdue');
+      document.getElementById('statTodayLabel').textContent = translate('Due Today');
+      document.getElementById('due').title = translate('Due');
+
+      const prio = document.getElementById('prio');
+      prio.querySelector('option[value="low"]').textContent = translate('Low');
+      prio.querySelector('option[value="normal"]').textContent = translate('Normal');
+      prio.querySelector('option[value="high"]').textContent = translate('High');
+
+      document.getElementById('newBtn').textContent = translate('New Task');
+      document.getElementById('cancelBtn').textContent = translate('Cancel');
+
+      document.getElementById('detailHeader').textContent = translate('Details');
+      document.getElementById('detailCloseBtn').textContent = translate('Close');
+    }
+
+    function openOverlay(mode) {
+      const overlay = document.getElementById('overlay');
+      const title = document.getElementById('formTitle');
+      const submit = document.getElementById('addBtn');
+
+      if (mode === 'edit') {
+        title.textContent = translate('Edit Task');
+        submit.textContent = translate('Save');
+      } else {
+        title.textContent = translate('New Task');
+        submit.textContent = translate('Add');
+      }
+
+      overlay.classList.add('open');
+      document.getElementById('title').focus();
+    }
+
+    function closeOverlay() {
+      document.getElementById('overlay').classList.remove('open');
+      editingId = 0;
+    }
+
+    function openDetail(id) {
+      const it = (Array.isArray(state.items) ? state.items : []).find(x => parseInt(x.id) === parseInt(id));
+      if (!it) return;
+
+      document.getElementById('detailTaskTitle').textContent = String(it.title ?? '');
+      document.getElementById('detailTaskInfo').textContent = String(it.info ?? '');
+
+      const due = formatDue(it.due);
+      const quantity = parseInt(it.quantity) || 0;
+      const notification = !!it.notification;
+      const prio = String(it.priority ?? 'normal');
+      const prioKey = getPriorityKey(prio);
+      const prioLabel = getPriorityLabel(prioKey);
+
+      const meta = [];
+      if (quantity > 0) meta.push(`<span class="badge quantity">${quantity}×</span>`);
+      if (due) meta.push(`<span class="badge">${escapeHtml(due)}</span>`);
+      if (notification) meta.push(`<span class="badge">${escapeHtml(translate('Notification'))}</span>`);
+      meta.push(`<span class="badge ${prioKey}">${escapeHtml(prioLabel)}</span>`);
+      document.getElementById('detailMeta').innerHTML = meta.join('');
+
+      document.getElementById('detailOverlay').classList.add('open');
+    }
+
+    function closeDetail() {
+      document.getElementById('detailOverlay').classList.remove('open');
+    }
+
+    function resetForm() {
+      document.getElementById('title').value = '';
+      document.getElementById('info').value = '';
+      document.getElementById('notification').checked = false;
+      document.getElementById('due').value = '';
+      document.getElementById('prio').value = 'normal';
+      document.getElementById('quantity').value = '';
+    }
+
+    function timestampToLocalInput(ts) {
+      const t = parseInt(ts);
+      if (!Number.isFinite(t) || t <= 0) return '';
+      const d = new Date(t * 1000);
+      if (isNaN(d.getTime())) return '';
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    function openNew() {
+      resetForm();
+      editingId = 0;
+      openOverlay('new');
+    }
+
+    function openEdit(id) {
+      const it = (Array.isArray(state.items) ? state.items : []).find(x => parseInt(x.id) === parseInt(id));
+      if (!it) return;
+
+      editingId = parseInt(it.id);
+      document.getElementById('title').value = String(it.title ?? '');
+      document.getElementById('info').value = String(it.info ?? '');
+      document.getElementById('notification').checked = !!it.notification;
+      document.getElementById('prio').value = String(it.priority ?? 'normal');
+      document.getElementById('due').value = timestampToLocalInput(it.due ?? 0);
+      document.getElementById('quantity').value = parseInt(it.quantity) || '';
+      openOverlay('edit');
+    }
+
+    function renderItem(it) {
+      const id = String(it.id);
+      const title = escapeHtml(it.title ?? '');
+      const info = escapeHtml(it.info ?? '');
+      const done = !!it.done;
+      const due = formatDue(it.due);
+      const quantity = parseInt(it.quantity) || 0;
+      const prio = String(it.priority ?? 'normal');
+      const prioKey = getPriorityKey(prio);
+      const prioLabel = getPriorityLabel(prioKey);
+      const group = done ? 'completed' : 'active';
+
+      return `
+        <div class="item ${done ? 'done' : ''}" data-id="${id}" data-group="${group}">
+          <div class="main">
+            <input type="checkbox" class="chk" ${done ? 'checked' : ''} />
+            <div class="content">
+              <div class="title">${title}</div>
+              ${info ? `<div class="info">${info}</div>` : ''}
+            </div>
+          </div>
+          <div class="actions">
+            <div class="meta">
+              ${quantity > 0 ? `<span class="badge quantity">${quantity}×</span>` : ''}
+              ${due ? `<span class="badge">${escapeHtml(due)}</span>` : ''}
+              <span class="badge ${prioKey}">${escapeHtml(prioLabel)}</span>
+            </div>
+            <button class="del icon-btn" title="${translate('Delete')}" aria-label="${translate('Delete')}"><i class="fa-light fa-trash-can"></i></button>
+            <button class="edit icon-btn" title="${translate('Edit')}" aria-label="${translate('Edit')}"><i class="fa-light fa-pencil"></i></button>
+            <div class="drag-handle" draggable="true"><i class="fa-light fa-grip-dots-vertical"></i></div>
+          </div>
+        </div>
+      `;
+    }
+
+    function bindDnd(container) {
+      if (!dndBound) {
+        container.addEventListener('dragover', (e) => {
+          if (!dragItem) return;
+          e.preventDefault();
+
+          const target = e.target.closest('.item');
+          if (!target || target === dragItem) return;
+          if ((target.getAttribute('data-group') || '') !== dragGroup) return;
+
+          const rect = target.getBoundingClientRect();
+          const after = (e.clientY - rect.top) > (rect.height / 2);
+
+          container.querySelectorAll('.item.drag-over').forEach(x => x.classList.remove('drag-over'));
+          target.classList.add('drag-over');
+
+          if (after) {
+            target.after(dragItem);
+          } else {
+            target.before(dragItem);
+          }
+        });
+
+        container.addEventListener('drop', (e) => {
+          if (!dragItem) return;
+          e.preventDefault();
+
+          container.querySelectorAll('.item.drag-over').forEach(x => x.classList.remove('drag-over'));
+
+          const activeIds = Array.from(container.querySelectorAll('.item[data-group="active"]'))
+            .map(el => parseInt(el.getAttribute('data-id')))
+            .filter(n => Number.isFinite(n));
+          const completedIds = Array.from(container.querySelectorAll('.item[data-group="completed"]'))
+            .map(el => parseInt(el.getAttribute('data-id')))
+            .filter(n => Number.isFinite(n));
+
+          requestAction('Reorder', JSON.stringify({ order: activeIds.concat(completedIds) }));
+        });
+
+        dndBound = true;
+      }
+
+      container.querySelectorAll('.drag-handle').forEach(handle => {
+        handle.addEventListener('dragstart', (e) => {
+          const item = handle.closest('.item');
+          if (!item) return;
+          dragItem = item;
+          dragGroup = item.getAttribute('data-group') || '';
+          item.classList.add('dragging');
+
+          if (e.dataTransfer) {
+            e.dataTransfer.effectAllowed = 'move';
+            try {
+              e.dataTransfer.setData('text/plain', item.getAttribute('data-id') || '');
+            } catch (err) {
+            }
+            const ghost = document.createElement('div');
+            ghost.style.width = '1px';
+            ghost.style.height = '1px';
+            ghost.style.opacity = '0.01';
+            document.body.appendChild(ghost);
+            e.dataTransfer.setDragImage(ghost, 0, 0);
+            setTimeout(() => ghost.remove(), 0);
+          }
+        });
+
+        handle.addEventListener('dragend', () => {
+          if (dragItem) {
+            dragItem.classList.remove('dragging');
+          }
+          container.querySelectorAll('.item.drag-over').forEach(x => x.classList.remove('drag-over'));
+          dragItem = null;
+          dragGroup = '';
+        });
+      });
+    }
+
+    function updateStats() {
+      const items = Array.isArray(state.items) ? state.items : [];
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000;
+      const todayEnd = todayStart + 86400;
+
+      let open = 0, overdue = 0, today = 0;
+      items.forEach(it => {
+        if (it.done) return;
+        open++;
+        const due = parseInt(it.due) || 0;
+        if (due > 0) {
+          if (due < todayStart) overdue++;
+          else if (due >= todayStart && due < todayEnd) today++;
+        }
+      });
+
+      document.getElementById('statOpenValue').textContent = open;
+      document.getElementById('statOverdueValue').textContent = overdue;
+      document.getElementById('statTodayValue').textContent = today;
+    }
+
+    function render() {
+      updateStats();
+      const container = document.getElementById('list');
+      const items = Array.isArray(state.items) ? state.items : [];
+
+      if (items.length === 0) {
+        container.innerHTML = `<div class="empty">${translate('No items')}</div>`;
+        bindDnd(container);
+        return;
+      }
+
+      const active = items.filter(it => !it.done);
+      const completed = items.filter(it => !!it.done);
+
+      let html = active.map(renderItem).join('');
+
+      if (completed.length > 0) {
+        html += `<div class="section-header">${translate('Completed')}</div>`;
+        html += completed.map(renderItem).join('');
+      }
+
+      container.innerHTML = html;
+
+      container.querySelectorAll('.item').forEach(el => {
+        const id = parseInt(el.getAttribute('data-id'));
+        const chk = el.querySelector('.chk');
+        const del = el.querySelector('.del');
+        const edit = el.querySelector('.edit');
+        const title = el.querySelector('.title');
+        const info = el.querySelector('.info');
+
+        chk.addEventListener('change', () => {
+          requestAction('ToggleDone', JSON.stringify({ id: id, done: chk.checked }));
+        });
+
+        del.addEventListener('click', (e) => {
+          e.stopPropagation();
+          requestAction('DeleteItem', JSON.stringify({ id: id }));
+        });
+
+        edit.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openEdit(id);
+        });
+
+        if (title) {
+          title.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openDetail(id);
+          });
+        }
+
+        if (info) {
+          info.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openDetail(id);
+          });
+        }
+      });
+
+      bindDnd(container);
+    }
+
+    function handleMessage(data) {
+      if (typeof data === 'string') {
+        try {
+          data = JSON.parse(data);
+        } catch (e) {
+          return;
+        }
+      }
+      if (data && typeof data === 'object' && data.type === 'state') {
+        state = data;
+        render();
+      }
+    }
+
+    function requestState() {
+      requestAction('GetState', 0);
+    }
+
+    function getPriorityLabel(prio) {
+      switch (String(prio)) {
+        case 'low':
+          return translate('Low');
+        case 'high':
+          return translate('High');
+        default:
+          return translate('Normal');
+      }
+    }
+
+    function getPriorityKey(prio) {
+      switch (String(prio)) {
+        case 'low':
+          return 'low';
+        case 'high':
+          return 'high';
+        default:
+          return 'normal';
+      }
+    }
+
+    function formatDue(ts) {
+      const t = parseInt(ts);
+      if (!Number.isFinite(t) || t <= 0) return '';
+      const d = new Date(t * 1000);
+      if (isNaN(d.getTime())) return '';
+      return d.toLocaleString();
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initTexts();
+
+      document.getElementById('newBtn').addEventListener('click', () => {
+        openNew();
+      });
+
+      document.getElementById('cancelBtn').addEventListener('click', () => {
+        closeOverlay();
+      });
+
+      document.getElementById('overlay').addEventListener('click', (e) => {
+        if (e.target && e.target.id === 'overlay') {
+          closeOverlay();
+        }
+      });
+
+      document.getElementById('detailCloseBtn').addEventListener('click', () => {
+        closeDetail();
+      });
+
+      document.getElementById('detailOverlay').addEventListener('click', (e) => {
+        if (e.target && e.target.id === 'detailOverlay') {
+          closeDetail();
+        }
+      });
+
+      document.getElementById('addBtn').addEventListener('click', () => {
+        const title = (document.getElementById('title').value || '').trim();
+        const info = (document.getElementById('info').value || '').trim();
+        const notification = !!document.getElementById('notification').checked;
+        const dueStr = document.getElementById('due').value || '';
+        const prio = document.getElementById('prio').value || 'normal';
+        const quantity = parseInt(document.getElementById('quantity').value) || 0;
+
+        if (title === '') return;
+
+        let due = 0;
+        if (dueStr) {
+          const d = new Date(dueStr);
+          if (!isNaN(d.getTime())) {
+            due = Math.floor(d.getTime() / 1000);
+          }
+        }
+
+        resetForm();
+
+        if (editingId > 0) {
+          requestAction('UpdateItem', JSON.stringify({ id: editingId, title, info, due, priority: prio, quantity, notification }));
+        } else {
+          requestAction('AddItem', JSON.stringify({ title, info, due, priority: prio, quantity, notification }));
+        }
+        closeOverlay();
+      });
+
+      requestState();
+    });
+  </script>
+</body>
+</html>
