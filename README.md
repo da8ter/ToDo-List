@@ -2,7 +2,7 @@
 
 Dieses Modul stellt eine ToDo-Liste für die Tile-Visualisierung bereit.
 
-https://github.com/da8ter/images/blob/main/todo.png
+![ToDo List](https://github.com/da8ter/images/blob/main/todo.png)
 
 ## Inhalt
 
