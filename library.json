@@ -1,10 +1,10 @@
 {
   "id": "{1D5AA2E7-8C87-4E65-8F8C-8D4A0F8B735A}",
-  "author": "",
+  "author": "Stephan Sprick",
   "name": "ToDo Lists",
   "url": "",
   "compatibility": {
-    "version": "8.0"
+    "version": "8.1"
   },
   "version": "1.0",
   "build": 1,
