@@ -11,9 +11,14 @@ class ToDoList extends IPSModuleStrict
         $this->RegisterPropertyString('ItemsTable', '[]');
         $this->RegisterPropertyInteger('VisualizationInstanceID', 0);
         $this->RegisterPropertyInteger('NotificationLeadTime', 600);
+        $this->RegisterPropertyBoolean('ShowOverview', true);
+        $this->RegisterPropertyBoolean('ShowCreateButton', true);
+        $this->RegisterPropertyBoolean('ShowSorting', true);
         $this->RegisterAttributeString('Items', '[]');
         $this->RegisterAttributeInteger('NextID', 1);
         $this->RegisterAttributeInteger('LastConfigFormRequest', 0);
+        $this->RegisterAttributeString('LastItemsTableHash', '');
+        $this->RegisterAttributeInteger('OrderVersion', 0);
         $this->RegisterAttributeInteger('LastNotificationLeadTime', 600);
 
         $this->RegisterTimer('NotificationTimer', 0, 'TDL_ProcessNotifications($_IPS[\'TARGET\']);');
@@ -37,7 +42,13 @@ class ToDoList extends IPSModuleStrict
         $visuID = $this->ReadPropertyInteger('VisualizationInstanceID');
         $this->SetTimerInterval('NotificationTimer', $visuID > 0 ? 60000 : 0);
 
-        $this->SyncItemsFromConfiguration();
+        $itemsTable = $this->ReadPropertyString('ItemsTable');
+        $hash = md5($itemsTable);
+        $lastHash = $this->ReadAttributeString('LastItemsTableHash');
+        if ($hash !== $lastHash) {
+            $this->SyncItemsFromConfiguration();
+            $this->WriteAttributeString('LastItemsTableHash', $hash);
+        }
         $this->UpdateStatistics();
         $this->SendState();
 
@@ -62,6 +73,8 @@ class ToDoList extends IPSModuleStrict
                     'name' => 'NotificationLeadTime',
                     'caption' => 'Notification Lead Time',
                     'options' => [
+                        ['caption' => '0 minutes', 'value' => 0],
+                        ['caption' => '5 minutes', 'value' => 300],
                         ['caption' => '10 minutes', 'value' => 600],
                         ['caption' => '30 minutes', 'value' => 1800],
                         ['caption' => '1 hour', 'value' => 3600],
@@ -70,10 +83,26 @@ class ToDoList extends IPSModuleStrict
                     ]
                 ],
                 [
+                    'type' => 'CheckBox',
+                    'name' => 'ShowOverview',
+                    'caption' => 'Show overview'
+                ],
+                [
+                    'type' => 'CheckBox',
+                    'name' => 'ShowCreateButton',
+                    'caption' => 'Show create button'
+                ],
+                [
+                    'type' => 'CheckBox',
+                    'name' => 'ShowSorting',
+                    'caption' => 'Show sorting'
+                ],
+                [
                     'type'  => 'List',
                     'name'  => 'ItemsTable',
                     'caption' => 'Items',
                     'rowCount' => 10,
+                    'changeOrder' => true,
                     'add' => true,
                     'delete' => true,
                     'columns' => [
@@ -212,15 +241,28 @@ class ToDoList extends IPSModuleStrict
         $this->WriteAttributeInteger('NextID', $id + 1);
 
         $now = time();
+        $due = (int)($Item['due'] ?? 0);
+        $notification = (bool)($Item['notification'] ?? false);
+        if ($due <= 0) {
+            $notification = false;
+        }
+
+        $leadTime = $this->ReadPropertyInteger('NotificationLeadTime');
+        $itemLeadTime = $leadTime;
+        if (array_key_exists('notificationLeadTime', $Item)) {
+            $itemLeadTime = max(0, (int)$Item['notificationLeadTime']);
+        }
+
         $newItem = [
             'id'        => $id,
             'title'     => $title,
             'info'      => (string)($Item['info'] ?? ''),
             'done'      => (bool)($Item['done'] ?? false),
-            'due'       => (int)($Item['due'] ?? 0),
+            'due'       => $due,
             'priority'  => (string)($Item['priority'] ?? 'normal'),
             'quantity'  => (int)($Item['quantity'] ?? 0),
-            'notification' => (bool)($Item['notification'] ?? false),
+            'notification' => $notification,
+            'notificationLeadTime' => $itemLeadTime,
             'notifiedFor'  => 0,
             'createdAt' => $now,
             'updatedAt' => $now
@@ -268,6 +310,16 @@ class ToDoList extends IPSModuleStrict
             if (array_key_exists('notification', $Data)) {
                 $resetNotify = $resetNotify || ((bool)($item['notification'] ?? false) !== (bool)$Data['notification']);
                 $item['notification'] = (bool)$Data['notification'];
+            }
+
+            if (array_key_exists('notificationLeadTime', $Data)) {
+                $resetNotify = $resetNotify || ((int)($item['notificationLeadTime'] ?? 0) !== (int)$Data['notificationLeadTime']);
+                $item['notificationLeadTime'] = max(0, (int)$Data['notificationLeadTime']);
+            }
+
+            if (((int)($item['due'] ?? 0)) <= 0) {
+                $item['notification'] = false;
+                $resetNotify = true;
             }
 
             if ($resetNotify) {
@@ -331,6 +383,7 @@ class ToDoList extends IPSModuleStrict
         }
 
         $items = $this->LoadItems();
+        $beforeIds = array_map(fn($it) => (int)($it['id'] ?? 0), $items);
         $map = [];
         foreach ($items as $it) {
             $map[(int)($it['id'] ?? 0)] = $it;
@@ -353,6 +406,10 @@ class ToDoList extends IPSModuleStrict
             }
         }
 
+        $afterIds = array_map(fn($it) => (int)($it['id'] ?? 0), $newItems);
+        if ($beforeIds !== $afterIds) {
+            $this->WriteAttributeInteger('OrderVersion', $this->ReadAttributeInteger('OrderVersion') + 1);
+        }
         $this->SaveItems($newItems);
     }
 
@@ -391,6 +448,7 @@ class ToDoList extends IPSModuleStrict
         }
 
         $itemsBefore = $this->LoadItems();
+        $beforeIds = array_map(fn($it) => (int)($it['id'] ?? 0), $itemsBefore);
 
         $existing = [];
         foreach ($itemsBefore as $it) {
@@ -400,6 +458,7 @@ class ToDoList extends IPSModuleStrict
         $nextID = $this->ReadAttributeInteger('NextID');
         $now = time();
         $items = [];
+        $newItems = [];
 
         foreach ($rows as $row) {
             if (!is_array($row)) {
@@ -431,8 +490,9 @@ class ToDoList extends IPSModuleStrict
             $old = $existing[$id] ?? [];
             $dueTs = $this->SelectDateTimeToTimestamp($row['due'] ?? null);
             $notification = (bool)($row['notification'] ?? false);
+            $notificationLeadTime = (int)($old['notificationLeadTime'] ?? $this->ReadPropertyInteger('NotificationLeadTime'));
             $notifiedFor = (int)($old['notifiedFor'] ?? 0);
-            if ((int)($old['due'] ?? 0) !== $dueTs || (bool)($old['notification'] ?? false) !== $notification) {
+            if ((int)($old['due'] ?? 0) !== $dueTs || (bool)($old['notification'] ?? false) !== $notification || (int)($old['notificationLeadTime'] ?? $notificationLeadTime) !== $notificationLeadTime) {
                 $notifiedFor = 0;
             }
 
@@ -443,12 +503,34 @@ class ToDoList extends IPSModuleStrict
                 'done'      => (bool)($row['done'] ?? false),
                 'quantity'  => (int)($row['quantity'] ?? 0),
                 'notification' => $notification,
+                'notificationLeadTime' => max(0, $notificationLeadTime),
                 'notifiedFor'  => $notifiedFor,
                 'due'       => $dueTs,
                 'priority'  => $prio,
                 'createdAt' => $createdAt,
                 'updatedAt' => $now
             ];
+        }
+
+        foreach ($items as $it) {
+            $id = (int)($it['id'] ?? 0);
+            if (isset($existing[$id])) {
+                continue;
+            }
+            $newItems[] = $it;
+        }
+        if (count($newItems) > 0) {
+            $existingItems = array_values(array_filter($items, fn($it) => isset($existing[(int)($it['id'] ?? 0)])));
+            $items = array_merge($newItems, $existingItems);
+        }
+
+        $afterIds = array_map(fn($it) => (int)($it['id'] ?? 0), $items);
+        $beforeSet = $beforeIds;
+        $afterSet = $afterIds;
+        sort($beforeSet);
+        sort($afterSet);
+        if ($beforeSet === $afterSet && $beforeIds !== $afterIds) {
+            $this->WriteAttributeInteger('OrderVersion', $this->ReadAttributeInteger('OrderVersion') + 1);
         }
 
         $this->WriteAttributeInteger('NextID', $nextID);
@@ -534,7 +616,6 @@ class ToDoList extends IPSModuleStrict
     {
         $this->WriteAttributeString('Items', json_encode($Items));
         $this->UpdateStatistics();
-        $this->SyncItemsTableFormValues();
     }
 
     private function BuildItemsTableValues(array $Items): array
@@ -563,7 +644,7 @@ class ToDoList extends IPSModuleStrict
             return;
         }
 
-        $leadTime = max(0, $this->ReadPropertyInteger('NotificationLeadTime'));
+        $defaultLeadTime = max(0, $this->ReadPropertyInteger('NotificationLeadTime'));
         $now = time();
 
         $items = $this->LoadItems();
@@ -580,6 +661,11 @@ class ToDoList extends IPSModuleStrict
             $due = (int)($item['due'] ?? 0);
             if ($due <= 0) {
                 continue;
+            }
+
+            $leadTime = $defaultLeadTime;
+            if (array_key_exists('notificationLeadTime', $item)) {
+                $leadTime = max(0, (int)$item['notificationLeadTime']);
             }
 
             $trigger = $due - $leadTime;
@@ -671,7 +757,12 @@ class ToDoList extends IPSModuleStrict
     {
         $this->UpdateVisualizationValue(json_encode([
             'type'  => 'state',
-            'items' => $this->LoadItems()
+            'items' => $this->LoadItems(),
+            'notificationLeadTimeDefault' => $this->ReadPropertyInteger('NotificationLeadTime'),
+            'orderVersion' => $this->ReadAttributeInteger('OrderVersion'),
+            'showOverview' => $this->ReadPropertyBoolean('ShowOverview'),
+            'showCreateButton' => $this->ReadPropertyBoolean('ShowCreateButton'),
+            'showSorting' => $this->ReadPropertyBoolean('ShowSorting')
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
     }
 }

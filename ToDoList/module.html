@@ -53,6 +53,10 @@
       background: var(--bg);
       backdrop-filter: none;
     }
+    #detailOverlay {
+      background: var(--bg);
+      backdrop-filter: none;
+    }
     .overlay.open { display: flex; }
     .overlay-card {
       background: var(--card);
@@ -96,9 +100,25 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      color: var(--text);
+      cursor: pointer;
       font-size: 13px;
       user-select: none;
+    }
+    .checkrow label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+    .hint {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.2;
+    }
+    .checkrow select {
+      flex: 1 1 auto;
+      min-width: 0;
     }
     .checkrow input[type="checkbox"] {
       width: 18px;
@@ -107,6 +127,23 @@
       padding: 0;
       flex: 0 0 auto;
     }
+    .date-input {
+      position: relative;
+      width: 100%;
+      color: var(--text);
+    }
+    .date-input input {
+      padding-right: 40px;
+    }
+    .date-input .cal-icon {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      pointer-events: none;
+      color: inherit;
+    }
+    #due::-webkit-calendar-picker-indicator { opacity: 0; }
     input:not([type="checkbox"]), select {
       width: 100%;
       box-sizing: border-box;
@@ -200,6 +237,19 @@
       border: 1px solid var(--border);
       color: var(--muted);
     }
+    .badge.due-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .badge.due-badge .due-icon { color: inherit; }
+    .badge.due-badge .due-icon { display: none; }
+    .badge.due-badge.due-overdue { border-color: rgb(255, 0, 0); color: var(--text); background-color: rgb(255, 0, 0, 0.2); }
+    .badge.due-badge.due-today { border-color: #ffa500; color: var(--text); background-color: rgb(255, 165, 0, 0.2); }
+    @media (max-width: 420px) {
+      .badge.due-badge .due-text { display: none; }
+      .badge.due-badge .due-icon { display: inline-block; }
+    }
     .badge.high, .badge.normal, .badge.low {
       display: inline-flex;
       justify-content: center;
@@ -292,6 +342,25 @@
     .stat-open .label, .stat-open .value { color: var(--accent); }
     .stat-overdue .label, .stat-overdue .value { color: #ff5a5a; }
     .stat-today .label, .stat-today .value { color: #ffa500; }
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: var(--gap);
+      flex-wrap: nowrap;
+    }
+    .toolbar .sort {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      flex: 1;
+    }
+    #sortLabel { white-space: nowrap; }
+    #sortSelect {
+      flex: 1;
+      min-width: 0;
+    }
   </style>
 </head>
 <body>
@@ -312,6 +381,15 @@
     </div>
     <button id="newBtn" class="primary"> </button>
 
+    <div class="toolbar">
+      <div class="sort">
+        <div id="sortLabel"></div>
+        <select id="sortSelect"></select>
+      </div>
+      <button class="sort-btn icon-btn" id="sortAsc" type="button"><i class="fa-light fa-arrow-up"></i></button>
+      <button class="sort-btn icon-btn" id="sortDesc" type="button"><i class="fa-light fa-arrow-down"></i></button>
+    </div>
+
     <div id="list" class="list"></div>
 
     <div id="overlay" class="overlay">
@@ -320,10 +398,14 @@
         <div class="add">
           <input id="title" type="text" class="full" />
           <input id="info" type="text" class="full" />
-          <label class="full checkrow"><input id="notification" type="checkbox" /><span id="notificationLabel"></span></label>
-          <input id="quantity" type="number" min="0" style="width:80px" />
-          <input id="due" type="datetime-local" />
-          <select id="prio">
+          <div class="full date-input">
+            <input id="due" type="datetime-local" />
+            <i class="fa-light fa-calendar cal-icon"></i>
+          </div>
+          <div class="full checkrow"><label><input id="notification" type="checkbox" /><span id="notificationLabel"></span></label><select id="notificationLeadTime"></select></div>
+          <div id="notificationLeadTimeInfo" class="full hint"></div>
+          <input id="quantity" type="number" min="0" class="full" />
+          <select id="prio" class="full">
             <option value="low"></option>
             <option value="normal" selected></option>
             <option value="high"></option>
@@ -355,6 +437,31 @@
     let dragItem = null;
     let dragGroup = '';
     let dndBound = false;
+    let sortMode = 'created';
+    let sortDir = 'desc';
+    let lastOrderVersion = null;
+
+    function applyUiVisibility() {
+      const showOverview = state.showOverview !== false;
+      const showCreateButton = state.showCreateButton !== false;
+      const showSorting = state.showSorting !== false;
+
+      const stats = document.querySelector('.stats');
+      if (stats) stats.style.display = showOverview ? '' : 'none';
+
+      const newBtn = document.getElementById('newBtn');
+      if (newBtn) newBtn.style.display = showCreateButton ? '' : 'none';
+
+      const toolbar = document.querySelector('.toolbar');
+      if (toolbar) toolbar.style.display = showSorting ? '' : 'none';
+    }
+
+    function setManualSort() {
+      sortMode = 'manual';
+      const sel = document.getElementById('sortSelect');
+      if (sel) sel.value = 'manual';
+      updateSortButtons();
+    }
 
     function initTexts() {
       document.getElementById('title').placeholder = translate('Title');
@@ -366,6 +473,45 @@
       document.getElementById('statTodayLabel').textContent = translate('Due Today');
       document.getElementById('due').title = translate('Due');
 
+      document.getElementById('sortLabel').textContent = translate('Sort');
+      const sort = document.getElementById('sortSelect');
+      sort.innerHTML = '';
+      const sortOpts = [
+        { v: 'manual', t: 'Sort by manual' },
+        { v: 'created', t: 'Sort by creation' },
+        { v: 'due', t: 'Sort by due' },
+        { v: 'priority', t: 'Sort by priority' },
+        { v: 'title', t: 'Sort by title' }
+      ];
+      for (const o of sortOpts) {
+        const el = document.createElement('option');
+        el.value = o.v;
+        el.textContent = translate(o.t);
+        sort.appendChild(el);
+      }
+      sort.value = sortMode;
+
+      document.getElementById('sortAsc').title = translate('Ascending');
+      document.getElementById('sortDesc').title = translate('Descending');
+
+      const lt = document.getElementById('notificationLeadTime');
+      lt.innerHTML = '';
+      const opts = [
+        { v: 0, t: '0 minutes' },
+        { v: 300, t: '5 minutes' },
+        { v: 600, t: '10 minutes' },
+        { v: 1800, t: '30 minutes' },
+        { v: 3600, t: '1 hour' },
+        { v: 18000, t: '5 hours' },
+        { v: 43200, t: '12 hours' }
+      ];
+      for (const o of opts) {
+        const el = document.createElement('option');
+        el.value = String(o.v);
+        el.textContent = translate(o.t);
+        lt.appendChild(el);
+      }
+
       const prio = document.getElementById('prio');
       prio.querySelector('option[value="low"]').textContent = translate('Low');
       prio.querySelector('option[value="normal"]').textContent = translate('Normal');
@@ -376,6 +522,88 @@
 
       document.getElementById('detailHeader').textContent = translate('Details');
       document.getElementById('detailCloseBtn').textContent = translate('Close');
+    }
+
+    function updateSortButtons() {
+      const asc = document.getElementById('sortAsc');
+      const desc = document.getElementById('sortDesc');
+      if (sortMode === 'manual') {
+        if (asc) {
+          asc.disabled = true;
+          asc.classList.remove('active');
+        }
+        if (desc) {
+          desc.disabled = true;
+          desc.classList.remove('active');
+        }
+        return;
+      }
+      if (asc) asc.classList.toggle('active', sortDir === 'asc');
+      if (desc) desc.classList.toggle('active', sortDir === 'desc');
+      if (asc) asc.disabled = false;
+      if (desc) desc.disabled = false;
+    }
+
+    function sortItems(items) {
+      const list = Array.isArray(items) ? items.slice() : [];
+
+      if (sortMode === 'manual') {
+        return list;
+      }
+
+      const compareDue = (a, b) => {
+        const da = parseInt(a.due) || 0;
+        const db = parseInt(b.due) || 0;
+        if (da <= 0 && db <= 0) return 0;
+        if (da <= 0) return 1;
+        if (db <= 0) return -1;
+        return sortDir === 'asc' ? (da - db) : (db - da);
+      };
+
+      const prioRankLowFirst = (p) => {
+        const v = String(p ?? 'normal');
+        if (v === 'low') return 0;
+        if (v === 'normal') return 1;
+        return 2;
+      };
+
+      const getCreatedKey = (it) => parseInt(it.createdAt) || 0;
+      const getTitleKey = (it) => String(it.title ?? '');
+      const getIdKey = (it) => parseInt(it.id) || 0;
+
+      list.sort((a, b) => {
+        if (sortMode === 'due') {
+          const c = compareDue(a, b);
+          if (c !== 0) return c;
+          return getIdKey(a) - getIdKey(b);
+        }
+        if (sortMode === 'priority') {
+          const pa = prioRankLowFirst(a.priority);
+          const pb = prioRankLowFirst(b.priority);
+          if (pa !== pb) {
+            return sortDir === 'asc' ? (pa - pb) : (pb - pa);
+          }
+          const c = compareDue(a, b);
+          if (c !== 0) return c;
+          return getIdKey(a) - getIdKey(b);
+        }
+        if (sortMode === 'title') {
+          const ta = getTitleKey(a);
+          const tb = getTitleKey(b);
+          const c = ta.localeCompare(tb, undefined, { sensitivity: 'base' });
+          if (c !== 0) return c;
+          return getIdKey(a) - getIdKey(b);
+        }
+        const ca = getCreatedKey(a);
+        const cb = getCreatedKey(b);
+        if (ca !== cb) return sortDir === 'asc' ? (ca - cb) : (cb - ca);
+        return getIdKey(a) - getIdKey(b);
+      });
+
+      if (sortMode === 'title' && sortDir === 'desc') {
+        list.reverse();
+      }
+      return list;
     }
 
     function openOverlay(mode) {
@@ -407,7 +635,9 @@
       document.getElementById('detailTaskTitle').textContent = String(it.title ?? '');
       document.getElementById('detailTaskInfo').textContent = String(it.info ?? '');
 
-      const due = formatDue(it.due);
+      const dueTs = parseInt(it.due) || 0;
+      const due = formatDue(dueTs);
+      const dueClass = getDueBadgeClass(dueTs);
       const quantity = parseInt(it.quantity) || 0;
       const notification = !!it.notification;
       const prio = String(it.priority ?? 'normal');
@@ -416,7 +646,7 @@
 
       const meta = [];
       if (quantity > 0) meta.push(`<span class="badge quantity">${quantity}×</span>`);
-      if (due) meta.push(`<span class="badge">${escapeHtml(due)}</span>`);
+      if (due) meta.push(`<span class="badge due-badge ${dueClass}" title="${escapeHtml(due)}"><i class="fa-light fa-calendar due-icon"></i><span class="due-text">${escapeHtml(due)}</span></span>`);
       if (notification) meta.push(`<span class="badge">${escapeHtml(translate('Notification'))}</span>`);
       meta.push(`<span class="badge ${prioKey}">${escapeHtml(prioLabel)}</span>`);
       document.getElementById('detailMeta').innerHTML = meta.join('');
@@ -428,13 +658,58 @@
       document.getElementById('detailOverlay').classList.remove('open');
     }
 
+    function getDefaultNotificationLeadTime() {
+      const v = parseInt(state.notificationLeadTimeDefault);
+      return Number.isFinite(v) ? v : 600;
+    }
+
+    function updateNotificationLeadTimeInfo() {
+      const chk = document.getElementById('notification');
+      const sel = document.getElementById('notificationLeadTime');
+      const info = document.getElementById('notificationLeadTimeInfo');
+      const show = !chk.disabled && chk.checked;
+      info.style.display = show ? '' : 'none';
+      if (!show) {
+        info.textContent = '';
+        return;
+      }
+      const opt = sel.options[sel.selectedIndex];
+      const text = opt ? opt.textContent : '';
+      info.textContent = translate('Notify before due').replace('{0}', text);
+    }
+
+    function updateNotificationLeadTimeUI() {
+      const chk = document.getElementById('notification');
+      const sel = document.getElementById('notificationLeadTime');
+      const enabled = !chk.disabled && chk.checked;
+      sel.disabled = !enabled;
+      sel.style.display = '';
+      if (!sel.value) {
+        sel.value = String(getDefaultNotificationLeadTime());
+      }
+      updateNotificationLeadTimeInfo();
+    }
+
+    function updateNotificationAvailability() {
+      const dueStr = document.getElementById('due').value || '';
+      const chk = document.getElementById('notification');
+      const enabled = dueStr !== '';
+      chk.disabled = !enabled;
+      if (!enabled) {
+        chk.checked = false;
+      }
+      updateNotificationLeadTimeUI();
+    }
+
     function resetForm() {
       document.getElementById('title').value = '';
       document.getElementById('info').value = '';
       document.getElementById('notification').checked = false;
+      document.getElementById('notificationLeadTime').value = String(getDefaultNotificationLeadTime());
       document.getElementById('due').value = '';
       document.getElementById('prio').value = 'normal';
       document.getElementById('quantity').value = '';
+      updateNotificationAvailability();
     }
 
     function timestampToLocalInput(ts) {
@@ -460,9 +735,11 @@
       document.getElementById('title').value = String(it.title ?? '');
       document.getElementById('info').value = String(it.info ?? '');
       document.getElementById('notification').checked = !!it.notification;
+      document.getElementById('notificationLeadTime').value = String(parseInt(it.notificationLeadTime) || getDefaultNotificationLeadTime());
       document.getElementById('prio').value = String(it.priority ?? 'normal');
       document.getElementById('due').value = timestampToLocalInput(it.due ?? 0);
       document.getElementById('quantity').value = parseInt(it.quantity) || '';
+      updateNotificationAvailability();
       openOverlay('edit');
     }
 
@@ -471,7 +748,9 @@
       const title = escapeHtml(it.title ?? '');
       const info = escapeHtml(it.info ?? '');
       const done = !!it.done;
-      const due = formatDue(it.due);
+      const dueTs = parseInt(it.due) || 0;
+      const due = formatDue(dueTs);
+      const dueClass = getDueBadgeClass(dueTs);
       const quantity = parseInt(it.quantity) || 0;
       const prio = String(it.priority ?? 'normal');
       const prioKey = getPriorityKey(prio);
@@ -490,7 +769,7 @@
           <div class="actions">
             <div class="meta">
               ${quantity > 0 ? `<span class="badge quantity">${quantity}×</span>` : ''}
-              ${due ? `<span class="badge">${escapeHtml(due)}</span>` : ''}
+              ${due ? `<span class="badge due-badge ${dueClass}" title="${escapeHtml(due)}"><i class="fa-light fa-calendar due-icon"></i><span class="due-text">${escapeHtml(due)}</span></span>` : ''}
               <span class="badge ${prioKey}">${escapeHtml(prioLabel)}</span>
             </div>
             <button class="del icon-btn" title="${translate('Delete')}" aria-label="${translate('Delete')}"><i class="fa-light fa-trash-can"></i></button>
@@ -537,6 +816,7 @@
             .map(el => parseInt(el.getAttribute('data-id')))
             .filter(n => Number.isFinite(n));
 
+          setManualSort();
           requestAction('Reorder', JSON.stringify({ order: activeIds.concat(completedIds) }));
         });
 
@@ -611,8 +891,8 @@
         return;
       }
 
-      const active = items.filter(it => !it.done);
-      const completed = items.filter(it => !!it.done);
+      const active = sortItems(items.filter(it => !it.done));
+      const completed = sortItems(items.filter(it => !!it.done));
 
       let html = active.map(renderItem).join('');
 
@@ -672,10 +952,26 @@
         }
       }
       if (data && typeof data === 'object' && data.type === 'state') {
+        const ov = parseInt(data.orderVersion) || 0;
+        if (lastOrderVersion === null) {
+          if (ov > 0) {
+            setManualSort();
+          }
+          lastOrderVersion = ov;
+        } else if (ov !== lastOrderVersion) {
+          setManualSort();
+          lastOrderVersion = ov;
+        }
         state = data;
+        applyUiVisibility();
         render();
       }
     }
+
+    window.addEventListener('message', (event) => {
+      if (!event) return;
+      handleMessage(event.data);
+    });
 
     function requestState() {
       requestAction('GetState', 0);
@@ -707,8 +1003,22 @@
       const t = parseInt(ts);
       if (!Number.isFinite(t) || t <= 0) return '';
       const d = new Date(t * 1000);
-      if (isNaN(d.getTime())) return '';
-      return d.toLocaleString();
+      const date = d.toLocaleDateString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit' });
+      const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+      return `${date} ${time}`;
+    }
+
+    function getDueBadgeClass(ts) {
+      const t = parseInt(ts);
+      if (!Number.isFinite(t) || t <= 0) return '';
+
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000;
+      const todayEnd = todayStart + 86400;
+
+      if (t < todayStart) return 'due-overdue';
+      if (t >= todayStart && t < todayEnd) return 'due-today';
+      return '';
     }
 
     function escapeHtml(s) {
@@ -722,6 +1032,33 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       initTexts();
+      applyUiVisibility();
+
+      document.getElementById('sortSelect').addEventListener('change', () => {
+        sortMode = document.getElementById('sortSelect').value || 'created';
+        updateSortButtons();
+        render();
+      });
+      document.getElementById('sortAsc').addEventListener('click', () => {
+        if (sortMode === 'manual') return;
+        sortDir = 'asc';
+        updateSortButtons();
+        render();
+      });
+      document.getElementById('sortDesc').addEventListener('click', () => {
+        if (sortMode === 'manual') return;
+        sortDir = 'desc';
+        updateSortButtons();
+        render();
+      });
+      updateSortButtons();
+
+      document.getElementById('due').addEventListener('input', updateNotificationAvailability);
+      document.getElementById('due').addEventListener('change', updateNotificationAvailability);
+      document.getElementById('notification').addEventListener('change', updateNotificationLeadTimeUI);
+      document.getElementById('notificationLeadTime').addEventListener('click', (e) => e.stopPropagation());
+      document.getElementById('notificationLeadTime').addEventListener('change', updateNotificationLeadTimeInfo);
+      updateNotificationAvailability();
 
       document.getElementById('newBtn').addEventListener('click', () => {
         openNew();
@@ -731,26 +1068,15 @@
         closeOverlay();
       });
 
-      document.getElementById('overlay').addEventListener('click', (e) => {
-        if (e.target && e.target.id === 'overlay') {
-          closeOverlay();
-        }
-      });
-
       document.getElementById('detailCloseBtn').addEventListener('click', () => {
         closeDetail();
-      });
-
-      document.getElementById('detailOverlay').addEventListener('click', (e) => {
-        if (e.target && e.target.id === 'detailOverlay') {
-          closeDetail();
-        }
       });
 
       document.getElementById('addBtn').addEventListener('click', () => {
         const title = (document.getElementById('title').value || '').trim();
         const info = (document.getElementById('info').value || '').trim();
         const notification = !!document.getElementById('notification').checked;
+        const notificationLeadTime = parseInt(document.getElementById('notificationLeadTime').value) || getDefaultNotificationLeadTime();
         const dueStr = document.getElementById('due').value || '';
         const prio = document.getElementById('prio').value || 'normal';
         const quantity = parseInt(document.getElementById('quantity').value) || 0;
@@ -768,9 +1094,9 @@
         resetForm();
 
         if (editingId > 0) {
-          requestAction('UpdateItem', JSON.stringify({ id: editingId, title, info, due, priority: prio, quantity, notification }));
+          requestAction('UpdateItem', JSON.stringify({ id: editingId, title, info, due, priority: prio, quantity, notification, notificationLeadTime }));
         } else {
-          requestAction('AddItem', JSON.stringify({ title, info, due, priority: prio, quantity, notification }));
+          requestAction('AddItem', JSON.stringify({ title, info, due, priority: prio, quantity, notification, notificationLeadTime }));
         }
         closeOverlay();
       });
