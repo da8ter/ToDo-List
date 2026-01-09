@@ -14,6 +14,11 @@ class ToDoList extends IPSModuleStrict
         $this->RegisterPropertyBoolean('ShowOverview', true);
         $this->RegisterPropertyBoolean('ShowCreateButton', true);
         $this->RegisterPropertyBoolean('ShowSorting', true);
+        $this->RegisterPropertyBoolean('ShowInfoBadges', true);
+        $this->RegisterPropertyBoolean('ShowDeleteButton', true);
+        $this->RegisterPropertyBoolean('ShowEditButton', true);
+        $this->RegisterPropertyBoolean('HideCompletedTasks', false);
+        $this->RegisterPropertyBoolean('DeleteCompletedTasks', false);
         $this->RegisterAttributeString('Items', '[]');
         $this->RegisterAttributeInteger('NextID', 1);
         $this->RegisterAttributeInteger('LastConfigFormRequest', 0);
@@ -66,7 +71,7 @@ class ToDoList extends IPSModuleStrict
                 [
                     'type' => 'SelectInstance',
                     'name' => 'VisualizationInstanceID',
-                    'caption' => 'Visualization Instance'
+                    'caption' => 'Visualization instance to which the notification is sent'
                 ],
                 [
                     'type' => 'Select',
@@ -96,6 +101,31 @@ class ToDoList extends IPSModuleStrict
                     'type' => 'CheckBox',
                     'name' => 'ShowSorting',
                     'caption' => 'Show sorting'
+                ],
+                [
+                    'type' => 'CheckBox',
+                    'name' => 'ShowInfoBadges',
+                    'caption' => 'Show info badges'
+                ],
+                [
+                    'type' => 'CheckBox',
+                    'name' => 'ShowDeleteButton',
+                    'caption' => 'Show delete button'
+                ],
+                [
+                    'type' => 'CheckBox',
+                    'name' => 'ShowEditButton',
+                    'caption' => 'Show edit button'
+                ],
+                [
+                    'type' => 'CheckBox',
+                    'name' => 'HideCompletedTasks',
+                    'caption' => 'Hide completed tasks'
+                ],
+                [
+                    'type' => 'CheckBox',
+                    'name' => 'DeleteCompletedTasks',
+                    'caption' => 'Delete completed tasks'
                 ],
                 [
                     'type'  => 'List',
@@ -282,54 +312,60 @@ class ToDoList extends IPSModuleStrict
         }
 
         $items = $this->LoadItems();
-        foreach ($items as &$item) {
-            if (($item['id'] ?? 0) !== $id) {
+        $deleteCompleted = $this->ReadPropertyBoolean('DeleteCompletedTasks');
+        for ($i = 0; $i < count($items); $i++) {
+            if (((int)($items[$i]['id'] ?? 0)) !== $id) {
                 continue;
+            }
+
+            if ($deleteCompleted && array_key_exists('done', $Data) && (bool)$Data['done']) {
+                unset($items[$i]);
+                $this->SaveItems(array_values($items));
+                return;
             }
 
             $resetNotify = false;
             if (array_key_exists('title', $Data)) {
-                $item['title'] = trim((string)$Data['title']);
+                $items[$i]['title'] = trim((string)$Data['title']);
             }
             if (array_key_exists('info', $Data)) {
-                $item['info'] = (string)$Data['info'];
+                $items[$i]['info'] = (string)$Data['info'];
             }
             if (array_key_exists('due', $Data)) {
-                $resetNotify = $resetNotify || ((int)$item['due'] !== (int)$Data['due']);
-                $item['due'] = (int)$Data['due'];
+                $resetNotify = $resetNotify || ((int)($items[$i]['due'] ?? 0) !== (int)$Data['due']);
+                $items[$i]['due'] = (int)$Data['due'];
             }
             if (array_key_exists('priority', $Data)) {
-                $item['priority'] = (string)$Data['priority'];
+                $items[$i]['priority'] = (string)$Data['priority'];
             }
             if (array_key_exists('done', $Data)) {
-                $item['done'] = (bool)$Data['done'];
+                $items[$i]['done'] = (bool)$Data['done'];
             }
             if (array_key_exists('quantity', $Data)) {
-                $item['quantity'] = (int)$Data['quantity'];
+                $items[$i]['quantity'] = (int)$Data['quantity'];
             }
             if (array_key_exists('notification', $Data)) {
-                $resetNotify = $resetNotify || ((bool)($item['notification'] ?? false) !== (bool)$Data['notification']);
-                $item['notification'] = (bool)$Data['notification'];
+                $resetNotify = $resetNotify || ((bool)($items[$i]['notification'] ?? false) !== (bool)$Data['notification']);
+                $items[$i]['notification'] = (bool)$Data['notification'];
             }
 
             if (array_key_exists('notificationLeadTime', $Data)) {
-                $resetNotify = $resetNotify || ((int)($item['notificationLeadTime'] ?? 0) !== (int)$Data['notificationLeadTime']);
-                $item['notificationLeadTime'] = max(0, (int)$Data['notificationLeadTime']);
+                $resetNotify = $resetNotify || ((int)($items[$i]['notificationLeadTime'] ?? 0) !== (int)$Data['notificationLeadTime']);
+                $items[$i]['notificationLeadTime'] = max(0, (int)$Data['notificationLeadTime']);
             }
 
-            if (((int)($item['due'] ?? 0)) <= 0) {
-                $item['notification'] = false;
+            if (((int)($items[$i]['due'] ?? 0)) <= 0) {
+                $items[$i]['notification'] = false;
                 $resetNotify = true;
             }
 
             if ($resetNotify) {
-                $item['notifiedFor'] = 0;
+                $items[$i]['notifiedFor'] = 0;
             }
 
-            $item['updatedAt'] = time();
+            $items[$i]['updatedAt'] = time();
             break;
         }
-        unset($item);
 
         $this->SaveItems($items);
     }
@@ -342,24 +378,33 @@ class ToDoList extends IPSModuleStrict
         }
 
         $items = $this->LoadItems();
-        foreach ($items as &$item) {
-            if (($item['id'] ?? 0) !== $id) {
+        $deleteCompleted = $this->ReadPropertyBoolean('DeleteCompletedTasks');
+        for ($i = 0; $i < count($items); $i++) {
+            if (((int)($items[$i]['id'] ?? 0)) !== $id) {
                 continue;
             }
 
-            $oldDone = (bool)($item['done'] ?? false);
+            $oldDone = (bool)($items[$i]['done'] ?? false);
+            $newDone = $oldDone;
             if (array_key_exists('done', $Data)) {
-                $item['done'] = (bool)$Data['done'];
+                $newDone = (bool)$Data['done'];
             } else {
-                $item['done'] = !$oldDone;
+                $newDone = !$oldDone;
             }
-            if ($oldDone !== (bool)$item['done']) {
-                $item['notifiedFor'] = 0;
+
+            if ($deleteCompleted && $newDone) {
+                unset($items[$i]);
+                $this->SaveItems(array_values($items));
+                return;
             }
-            $item['updatedAt'] = time();
+
+            $items[$i]['done'] = $newDone;
+            if ($oldDone !== $newDone) {
+                $items[$i]['notifiedFor'] = 0;
+            }
+            $items[$i]['updatedAt'] = time();
             break;
         }
-        unset($item);
 
         $this->SaveItems($items);
     }
@@ -459,9 +504,14 @@ class ToDoList extends IPSModuleStrict
         $now = time();
         $items = [];
         $newItems = [];
+        $deleteCompleted = $this->ReadPropertyBoolean('DeleteCompletedTasks');
 
         foreach ($rows as $row) {
             if (!is_array($row)) {
+                continue;
+            }
+
+            if ($deleteCompleted && !empty($row['done'])) {
                 continue;
             }
 
@@ -762,7 +812,12 @@ class ToDoList extends IPSModuleStrict
             'orderVersion' => $this->ReadAttributeInteger('OrderVersion'),
             'showOverview' => $this->ReadPropertyBoolean('ShowOverview'),
             'showCreateButton' => $this->ReadPropertyBoolean('ShowCreateButton'),
-            'showSorting' => $this->ReadPropertyBoolean('ShowSorting')
+            'showSorting' => $this->ReadPropertyBoolean('ShowSorting'),
+            'showInfoBadges' => $this->ReadPropertyBoolean('ShowInfoBadges'),
+            'showDeleteButton' => $this->ReadPropertyBoolean('ShowDeleteButton'),
+            'showEditButton' => $this->ReadPropertyBoolean('ShowEditButton'),
+            'hideCompletedTasks' => $this->ReadPropertyBoolean('HideCompletedTasks'),
+            'deleteCompletedTasks' => $this->ReadPropertyBoolean('DeleteCompletedTasks')
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
     }
 }

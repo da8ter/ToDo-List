@@ -14,7 +14,7 @@
       --radius: 14px;
       --gap: 12px;
     }
-    html, body { height: 90%; }
+
     body {
       color: var(--text);
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
@@ -116,7 +116,18 @@
       color: var(--muted);
       line-height: 1.2;
     }
+    .field-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-top: 2px;
+      margin-bottom: -6px;
+    }
     .checkrow select {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .checkrow .select-wrap {
       flex: 1 1 auto;
       min-width: 0;
     }
@@ -134,6 +145,21 @@
     }
     .date-input input {
       padding-right: 40px;
+      position: relative;
+      z-index: 1;
+    }
+    .date-input:not(.has-value):not(.is-focused) input {
+      color: transparent;
+    }
+    .date-input .date-placeholder {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      pointer-events: none;
+      color: var(--muted);
+      font-size: 13px;
+      z-index: 2;
     }
     .date-input .cal-icon {
       position: absolute;
@@ -142,6 +168,7 @@
       transform: translateY(-50%);
       pointer-events: none;
       color: inherit;
+      z-index: 3;
     }
     #due::-webkit-calendar-picker-indicator { opacity: 0; }
     input:not([type="checkbox"]), select {
@@ -166,6 +193,7 @@
     }
     button:active { transform: scale(.98); }
     button.primary { border-color: var(--accent); background-color: var(--accent); }
+    button.danger { border-color: rgb(255, 0, 0); background-color: rgb(255, 0, 0); }
 
     .list {
       flex: 1;
@@ -197,7 +225,7 @@
     .item .actions {
       display: flex;
       align-items: center;
-      gap: var(--gap);
+      gap: calc(var(--gap) / 2);
       flex-shrink: 0;
       margin-left: auto;
     }
@@ -246,6 +274,7 @@
     .badge.due-badge .due-icon { display: none; }
     .badge.due-badge.due-overdue { border-color: rgb(255, 0, 0); color: var(--text); background-color: rgb(255, 0, 0, 0.2); }
     .badge.due-badge.due-today { border-color: #ffa500; color: var(--text); background-color: rgb(255, 165, 0, 0.2); }
+    .badge.notify-badge { border-color: var(--accent); color: var(--text); background-color: color-mix(in srgb, var(--accent) 20%, var(--bg)); }
     @media (max-width: 420px) {
       .badge.due-badge .due-text { display: none; }
       .badge.due-badge .due-icon { display: inline-block; }
@@ -264,6 +293,12 @@
       padding: 6px 10px;
       font-size: 12px;
     }
+    .danger-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
     .item .edit {
       flex-shrink: 0;
       padding: 6px 10px;
@@ -271,8 +306,9 @@
     }
     .item .icon-btn {
       padding: 0;
-      width: 32px;
-      height: 32px;
+      width: 28px;
+      height: 28px;
+      box-sizing: border-box;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -281,9 +317,10 @@
       flex-shrink: 0;
       width: 28px;
       height: 28px;
+      box-sizing: border-box;
       border-radius: 10px;
       border: 1px solid var(--border);
-      background: var(--bg);
+      background: var(--card);
       cursor: grab;
       display: flex;
       align-items: center;
@@ -356,10 +393,44 @@
       min-width: 0;
       flex: 1;
     }
-    #sortLabel { white-space: nowrap; }
-    #sortSelect {
+    .select-wrap {
+      position: relative;
       flex: 1;
       min-width: 0;
+      color: var(--text);
+    }
+    .select-wrap select {
+      padding-right: 40px;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+    }
+    .select-wrap .select-icon {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      pointer-events: none;
+      color: inherit;
+    }
+    .toolbar.manual-sort #sortAsc,
+    .toolbar.manual-sort #sortDesc {
+      display: none;
+    }
+    #sortLabel { white-space: nowrap; }
+    #sortSelect {
+      min-width: 0;
+      height: 28px;
+      padding: 0 40px 0 12px;
+      line-height: 28px;
+    }
+    .toolbar .sort-btn {
+      height: 28px;
+      width: 28px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
   </style>
 </head>
@@ -384,7 +455,10 @@
     <div class="toolbar">
       <div class="sort">
         <div id="sortLabel"></div>
-        <select id="sortSelect"></select>
+        <div class="select-wrap">
+          <select id="sortSelect"></select>
+          <i class="fa-light fa-arrow-down-from-bracket select-icon"></i>
+        </div>
       </div>
       <button class="sort-btn icon-btn" id="sortAsc" type="button"><i class="fa-light fa-arrow-up"></i></button>
       <button class="sort-btn icon-btn" id="sortDesc" type="button"><i class="fa-light fa-arrow-down"></i></button>
@@ -400,19 +474,25 @@
           <input id="info" type="text" class="full" />
           <div class="full date-input">
             <input id="due" type="datetime-local" />
+            <div id="duePlaceholder" class="date-placeholder"></div>
             <i class="fa-light fa-calendar cal-icon"></i>
           </div>
-          <div class="full checkrow"><label><input id="notification" type="checkbox" /><span id="notificationLabel"></span></label><select id="notificationLeadTime"></select></div>
+          <div id="notificationFieldLabel" class="full field-label"></div>
+          <div class="full checkrow"><label><input id="notification" type="checkbox" /><span id="notificationLabel"></span></label><div class="select-wrap"><select id="notificationLeadTime"></select><i class="fa-light fa-arrow-down-from-bracket select-icon"></i></div></div>
           <div id="notificationLeadTimeInfo" class="full hint"></div>
           <input id="quantity" type="number" min="0" class="full" />
-          <select id="prio" class="full">
-            <option value="low"></option>
-            <option value="normal" selected></option>
-            <option value="high"></option>
-          </select>
+          <div class="full select-wrap">
+            <select id="prio">
+              <option value="low"></option>
+              <option value="normal" selected></option>
+              <option value="high"></option>
+            </select>
+            <i class="fa-light fa-arrow-down-from-bracket select-icon"></i>
+          </div>
         </div>
         <div class="overlay-actions">
-          <button id="cancelBtn"></button>
+          <button id="deleteBtn" class="danger danger-btn" type="button"><i class="fa-light fa-trash-can"></i><span id="deleteBtnText"></span></button>
+          <button id="cancelBtn" type="button"></button>
           <button id="addBtn" class="primary"></button>
         </div>
       </div>
@@ -464,14 +544,23 @@
     }
 
     function initTexts() {
-      document.getElementById('title').placeholder = translate('Title');
-      document.getElementById('info').placeholder = translate('Info');
-      document.getElementById('notificationLabel').textContent = translate('Notification');
-      document.getElementById('quantity').placeholder = translate('Quantity');
+      document.getElementById('formTitle').textContent = translate('New Task');
+      document.getElementById('addBtn').textContent = translate('Add');
+      document.getElementById('deleteBtnText').textContent = translate('Delete');
+
       document.getElementById('statOpenLabel').textContent = translate('Open Tasks');
       document.getElementById('statOverdueLabel').textContent = translate('Overdue');
       document.getElementById('statTodayLabel').textContent = translate('Due Today');
+
+      document.getElementById('title').title = translate('Title');
+      document.getElementById('title').placeholder = translate('Title');
+      document.getElementById('info').title = translate('Info');
+      document.getElementById('info').placeholder = translate('Info');
+      document.getElementById('quantity').title = translate('Quantity');
+      document.getElementById('quantity').placeholder = translate('Quantity');
       document.getElementById('due').title = translate('Due');
+      document.getElementById('duePlaceholder').textContent = translate('Due placeholder');
+      document.getElementById('notificationFieldLabel').textContent = translate('Notification');
 
       document.getElementById('sortLabel').textContent = translate('Sort');
       const sort = document.getElementById('sortSelect');
@@ -513,9 +602,9 @@
       }
 
       const prio = document.getElementById('prio');
-      prio.querySelector('option[value="low"]').textContent = translate('Low');
-      prio.querySelector('option[value="normal"]').textContent = translate('Normal');
-      prio.querySelector('option[value="high"]').textContent = translate('High');
+      prio.querySelector('option[value="low"]').textContent = translate('Priority low');
+      prio.querySelector('option[value="normal"]').textContent = translate('Priority normal');
+      prio.querySelector('option[value="high"]').textContent = translate('Priority high');
 
       document.getElementById('newBtn').textContent = translate('New Task');
       document.getElementById('cancelBtn').textContent = translate('Cancel');
@@ -527,6 +616,8 @@
     function updateSortButtons() {
       const asc = document.getElementById('sortAsc');
       const desc = document.getElementById('sortDesc');
+      const toolbar = document.querySelector('.toolbar');
+      if (toolbar) toolbar.classList.toggle('manual-sort', sortMode === 'manual');
       if (sortMode === 'manual') {
         if (asc) {
           asc.disabled = true;
@@ -610,13 +701,16 @@
       const overlay = document.getElementById('overlay');
       const title = document.getElementById('formTitle');
       const submit = document.getElementById('addBtn');
+      const delBtn = document.getElementById('deleteBtn');
 
       if (mode === 'edit') {
         title.textContent = translate('Edit Task');
         submit.textContent = translate('Save');
+        if (delBtn) delBtn.style.display = '';
       } else {
         title.textContent = translate('New Task');
         submit.textContent = translate('Add');
+        if (delBtn) delBtn.style.display = 'none';
       }
 
       overlay.classList.add('open');
@@ -647,7 +741,7 @@
       const meta = [];
       if (quantity > 0) meta.push(`<span class="badge quantity">${quantity}×</span>`);
       if (due) meta.push(`<span class="badge due-badge ${dueClass}" title="${escapeHtml(due)}"><i class="fa-light fa-calendar due-icon"></i><span class="due-text">${escapeHtml(due)}</span></span>`);
-      if (notification) meta.push(`<span class="badge">${escapeHtml(translate('Notification'))}</span>`);
+      if (notification) meta.push(`<span class="badge notify-badge" title="${escapeHtml(translate('Notification'))}"><i class="fa-light fa-message"></i></span>`);
       meta.push(`<span class="badge ${prioKey}">${escapeHtml(prioLabel)}</span>`);
       document.getElementById('detailMeta').innerHTML = meta.join('');
 
@@ -695,10 +789,27 @@
       const chk = document.getElementById('notification');
       const enabled = dueStr !== '';
       chk.disabled = !enabled;
+      updateDuePlaceholder();
       if (!enabled) {
         chk.checked = false;
       }
       updateNotificationLeadTimeUI();
+    }
+
+    function updateDuePlaceholder() {
+      const due = document.getElementById('due');
+      const ph = document.getElementById('duePlaceholder');
+      if (!due || !ph) {
+        return;
+      }
+      const hasValue = (due.value || '') !== '';
+      const isFocused = document.activeElement === due;
+      const wrap = due.closest('.date-input');
+      if (wrap) {
+        wrap.classList.toggle('has-value', hasValue);
+        wrap.classList.toggle('is-focused', isFocused);
+      }
+      ph.style.display = (!hasValue && !isFocused) ? '' : 'none';
     }
 
     function resetForm() {
@@ -752,10 +863,14 @@
       const due = formatDue(dueTs);
       const dueClass = getDueBadgeClass(dueTs);
       const quantity = parseInt(it.quantity) || 0;
+      const notification = !!it.notification;
       const prio = String(it.priority ?? 'normal');
       const prioKey = getPriorityKey(prio);
       const prioLabel = getPriorityLabel(prioKey);
       const group = done ? 'completed' : 'active';
+      const showInfoBadges = state.showInfoBadges === true;
+      const showDeleteButton = state.showDeleteButton !== false;
+      const showEditButton = state.showEditButton !== false;
 
       return `
         <div class="item ${done ? 'done' : ''}" data-id="${id}" data-group="${group}">
@@ -769,11 +884,12 @@
           <div class="actions">
             <div class="meta">
               ${quantity > 0 ? `<span class="badge quantity">${quantity}×</span>` : ''}
-              ${due ? `<span class="badge due-badge ${dueClass}" title="${escapeHtml(due)}"><i class="fa-light fa-calendar due-icon"></i><span class="due-text">${escapeHtml(due)}</span></span>` : ''}
-              <span class="badge ${prioKey}">${escapeHtml(prioLabel)}</span>
+              ${showInfoBadges && due ? `<span class="badge due-badge ${dueClass}" title="${escapeHtml(due)}"><i class="fa-light fa-calendar due-icon"></i><span class="due-text">${escapeHtml(due)}</span></span>` : ''}
+              ${showInfoBadges && notification ? `<span class="badge notify-badge" title="${escapeHtml(translate('Notification'))}"><i class="fa-light fa-message"></i></span>` : ''}
+              ${showInfoBadges ? `<span class="badge ${prioKey}">${escapeHtml(prioLabel)}</span>` : ''}
             </div>
-            <button class="del icon-btn" title="${translate('Delete')}" aria-label="${translate('Delete')}"><i class="fa-light fa-trash-can"></i></button>
-            <button class="edit icon-btn" title="${translate('Edit')}" aria-label="${translate('Edit')}"><i class="fa-light fa-pencil"></i></button>
+            ${showDeleteButton ? `<button class="del icon-btn" title="${translate('Delete')}" aria-label="${translate('Delete')}"><i class="fa-light fa-trash-can"></i></button>` : ''}
+            ${showEditButton ? `<button class="edit icon-btn" title="${translate('Edit')}" aria-label="${translate('Edit')}"><i class="fa-light fa-pencil"></i></button>` : ''}
             <div class="drag-handle" draggable="true"><i class="fa-light fa-grip-dots-vertical"></i></div>
           </div>
         </div>
@@ -812,9 +928,17 @@
           const activeIds = Array.from(container.querySelectorAll('.item[data-group="active"]'))
             .map(el => parseInt(el.getAttribute('data-id')))
             .filter(n => Number.isFinite(n));
-          const completedIds = Array.from(container.querySelectorAll('.item[data-group="completed"]'))
+          let completedIds = Array.from(container.querySelectorAll('.item[data-group="completed"]'))
             .map(el => parseInt(el.getAttribute('data-id')))
             .filter(n => Number.isFinite(n));
+
+          const hideCompleted = state.hideCompletedTasks === true;
+          if (hideCompleted) {
+            completedIds = (Array.isArray(state.items) ? state.items : [])
+              .filter(it => !!it.done)
+              .map(it => parseInt(it.id))
+              .filter(n => Number.isFinite(n));
+          }
 
           setManualSort();
           requestAction('Reorder', JSON.stringify({ order: activeIds.concat(completedIds) }));
@@ -884,6 +1008,7 @@
       updateStats();
       const container = document.getElementById('list');
       const items = Array.isArray(state.items) ? state.items : [];
+      const hideCompleted = state.hideCompletedTasks === true;
 
       if (items.length === 0) {
         container.innerHTML = `<div class="empty">${translate('No items')}</div>`;
@@ -892,7 +1017,7 @@
       }
 
       const active = sortItems(items.filter(it => !it.done));
-      const completed = sortItems(items.filter(it => !!it.done));
+      const completed = hideCompleted ? [] : sortItems(items.filter(it => !!it.done));
 
       let html = active.map(renderItem).join('');
 
@@ -915,15 +1040,19 @@
           requestAction('ToggleDone', JSON.stringify({ id: id, done: chk.checked }));
         });
 
-        del.addEventListener('click', (e) => {
-          e.stopPropagation();
-          requestAction('DeleteItem', JSON.stringify({ id: id }));
-        });
+        if (del) {
+          del.addEventListener('click', (e) => {
+            e.stopPropagation();
+            requestAction('DeleteItem', JSON.stringify({ id: id }));
+          });
+        }
 
-        edit.addEventListener('click', (e) => {
-          e.stopPropagation();
-          openEdit(id);
-        });
+        if (edit) {
+          edit.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openEdit(id);
+          });
+        }
 
         if (title) {
           title.addEventListener('click', (e) => {
@@ -1055,6 +1184,8 @@
 
       document.getElementById('due').addEventListener('input', updateNotificationAvailability);
       document.getElementById('due').addEventListener('change', updateNotificationAvailability);
+      document.getElementById('due').addEventListener('focus', updateDuePlaceholder);
+      document.getElementById('due').addEventListener('blur', updateDuePlaceholder);
       document.getElementById('notification').addEventListener('change', updateNotificationLeadTimeUI);
       document.getElementById('notificationLeadTime').addEventListener('click', (e) => e.stopPropagation());
       document.getElementById('notificationLeadTime').addEventListener('change', updateNotificationLeadTimeInfo);
@@ -1065,6 +1196,13 @@
       });
 
       document.getElementById('cancelBtn').addEventListener('click', () => {
+        closeOverlay();
+      });
+
+      document.getElementById('deleteBtn').addEventListener('click', () => {
+        if (editingId > 0) {
+          requestAction('DeleteItem', JSON.stringify({ id: editingId }));
+        }
         closeOverlay();
       });
 

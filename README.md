@@ -54,6 +54,16 @@ Dieses Modul stellt eine ToDo-Liste für die Tile-Visualisierung bereit.
   - Blendet im Frontend den Button **„Neuer Task“** ein/aus.
 - **Sortieren Button einblenden** (`ShowSorting`)
   - Blendet im Frontend die Sortier-Bedienelemente (Dropdown + Auf/Ab) ein/aus.
+- **Info-Badges einblenden** (`ShowInfoBadges`)
+  - Blendet in der Hauptansicht die Badges für Priorität, Fälligkeit und Benachrichtigung ein/aus.
+- **Löschen Button einblenden** (`ShowDeleteButton`)
+  - Blendet den Löschen-Button in der Hauptansicht ein/aus (im Edit-Dialog ist er immer verfügbar).
+- **Editier Button einblenden** (`ShowEditButton`)
+  - Blendet den Editier-Button in der Hauptansicht ein/aus.
+- **Erledigte Tasks ausblenden** (`HideCompletedTasks`)
+  - Blendet erledigte Tasks im Frontend aus.
+- **Erledigte Tasks löschen** (`DeleteCompletedTasks`)
+  - Löscht einen Task automatisch, sobald er als erledigt markiert wird.
 - **Items** (Listenelement im Konfigurationsformular)
   - Ermöglicht Bearbeitung der Tasks im Backend.
   - Drag&Drop zum Umsortieren ist aktiviert.
