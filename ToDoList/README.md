@@ -54,6 +54,16 @@ Dieses Modul stellt eine ToDo-Liste für die Tile-Visualisierung bereit.
   - Blendet im Frontend den Button **„Neuer Task“** ein/aus.
 - **Sortieren Button einblenden** (`ShowSorting`)
   - Blendet im Frontend die Sortier-Bedienelemente (Dropdown + Auf/Ab) ein/aus.
+- **Grid-Ansicht verwenden** (`UseGridView`)
+  - Schaltet die Darstellung zwischen Liste und Grid um.
+  - Im Grid werden Badges minimiert (nur Icons).
+- **Anzahl groß anzeigen** (`ShowLargeQuantity`)
+  - Zeigt die Anzahl in 3× größer Darstellung.
+  - Im Grid erscheint sie zentriert unter dem Infotext.
+- **Grid Einkaufslisten Modus** (`GridShoppingListMode`)
+  - Nur im Grid relevant: Kacheln werden kompakter dargestellt.
+  - Die Checkbox zum Erledigen wird ausgeblendet; ein Klick auf die Kachel markiert den Task als erledigt.
+  - Info-Badges (außer Anzahl) werden ausgeblendet.
 - **Info-Badges einblenden** (`ShowInfoBadges`)
   - Blendet in der Hauptansicht die Badges für Priorität, Fälligkeit und Benachrichtigung ein/aus.
 - **Löschen Button einblenden** (`ShowDeleteButton`)

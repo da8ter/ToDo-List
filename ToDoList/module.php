@@ -14,6 +14,9 @@ class ToDoList extends IPSModuleStrict
         $this->RegisterPropertyBoolean('ShowOverview', true);
         $this->RegisterPropertyBoolean('ShowCreateButton', true);
         $this->RegisterPropertyBoolean('ShowSorting', true);
+        $this->RegisterPropertyBoolean('UseGridView', false);
+        $this->RegisterPropertyBoolean('ShowLargeQuantity', false);
+        $this->RegisterPropertyBoolean('GridShoppingListMode', false);
         $this->RegisterPropertyBoolean('ShowInfoBadges', true);
         $this->RegisterPropertyBoolean('ShowDeleteButton', true);
         $this->RegisterPropertyBoolean('ShowEditButton', true);
@@ -101,6 +104,24 @@ class ToDoList extends IPSModuleStrict
                     'type' => 'CheckBox',
                     'name' => 'ShowSorting',
                     'caption' => 'Show sorting'
+                ],
+                [
+                    'type' => 'CheckBox',
+                    'name' => 'UseGridView',
+                    'caption' => 'Use grid view',
+                    'visible' => false
+                ],
+                [
+                    'type' => 'CheckBox',
+                    'name' => 'ShowLargeQuantity',
+                    'caption' => 'Show large quantity',
+                    'visible' => false
+                ],
+                [
+                    'type' => 'CheckBox',
+                    'name' => 'GridShoppingListMode',
+                    'caption' => 'Grid shopping list mode',
+                    'visible' => false
                 ],
                 [
                     'type' => 'CheckBox',
@@ -813,6 +834,9 @@ class ToDoList extends IPSModuleStrict
             'showOverview' => $this->ReadPropertyBoolean('ShowOverview'),
             'showCreateButton' => $this->ReadPropertyBoolean('ShowCreateButton'),
             'showSorting' => $this->ReadPropertyBoolean('ShowSorting'),
+            'useGridView' => $this->ReadPropertyBoolean('UseGridView'),
+            'showLargeQuantity' => $this->ReadPropertyBoolean('ShowLargeQuantity'),
+            'gridShoppingListMode' => $this->ReadPropertyBoolean('GridShoppingListMode'),
             'showInfoBadges' => $this->ReadPropertyBoolean('ShowInfoBadges'),
             'showDeleteButton' => $this->ReadPropertyBoolean('ShowDeleteButton'),
             'showEditButton' => $this->ReadPropertyBoolean('ShowEditButton'),
