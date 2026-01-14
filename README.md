@@ -22,6 +22,8 @@ Dieses Modul stellt eine ToDo-Liste für die Tile-Visualisierung bereit.
   - Anlegen, Bearbeiten, Löschen
   - Erledigt-Status
   - Titel / Info / Anzahl / Priorität / Fälligkeit
+  - Wiederkehrend basierend auf Fälligkeit (stündlich, 1/2/3 Wochen, monatlich, quartalsweise, jährlich)
+  - Wiederkehrende Tasks werden automatisch vor Fälligkeit wieder auf offen gesetzt (pro Task konfigurierbar)
   - Optional: Benachrichtigung vor Fälligkeit
 - **Sortierung**
   - Datum, Fälligkeit, Priorität, Titel
@@ -66,6 +68,7 @@ Dieses Modul stellt eine ToDo-Liste für die Tile-Visualisierung bereit.
   - Löscht einen Task automatisch, sobald er als erledigt markiert wird.
 - **Items** (Listenelement im Konfigurationsformular)
   - Ermöglicht Bearbeitung der Tasks im Backend.
+  - **Wiederholen** wird im Bearbeiten-Dialog immer angezeigt. **Wieder öffnen** wird nur angezeigt, wenn **Wiederholen** nicht **Keine** ist.
   - Drag&Drop zum Umsortieren ist aktiviert.
   - Die Übernahme ins Frontend erfolgt beim **„Übernehmen“** der Instanz.
 
@@ -105,6 +108,8 @@ Die folgenden Funktionen stehen in der Instanz zur Verfügung:
   - Setzt die Reihenfolge anhand einer ID-Liste.
 - **`ProcessNotifications()`**
   - Prüft fällige Benachrichtigungen und sendet diese (sofern konfiguriert).
+- **`ProcessRecurrences()`**
+  - Verarbeitet wiederkehrende Tasks (5-Tage-Regel und Terminfortschreibung).
 
 ## 8. Benachrichtigungen
 
@@ -119,7 +124,8 @@ Im Konfigurationsformular der Instanz:
 
 Benachrichtigung:
 
-- Titel: **"Task fällig"**
+- Titel (Vorlaufzeit = 0): **"Task fällig"**
+- Titel (Vorlaufzeit > 0): **"Task in {Vorlaufzeit} fällig"**
 - Text: Task-Titel
 - Type: **Info**
 - TargetID: Instanz-ID der ToDoList
