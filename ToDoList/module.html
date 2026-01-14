@@ -46,8 +46,7 @@
       display: none;
       flex-direction: column;
       gap: var(--gap);
-      overflow: auto;
-      scrollbar-width: none;
+      overflow: hidden;
       align-items: stretch;
       justify-content: flex-start;
       z-index: 1000;
@@ -69,6 +68,8 @@
       display: flex;
       flex-direction: column;
       width: 100%;
+      height: 100%;
+      min-height: 100%;
       max-height: 100%;
       overflow: hidden;
     }
@@ -80,10 +81,16 @@
       flex: 1 1 auto;
       min-height: 0;
       overflow: auto;
-      scrollbar-width: none;
+      scrollbar-width: thin;
+      scrollbar-color: color-mix(in srgb, var(--accent) 70%, transparent) transparent;
       padding: var(--gap);
     }
-    .overlay-body::-webkit-scrollbar { display: none; }
+    .overlay-body::-webkit-scrollbar { width: 6px; height: 6px; }
+    .overlay-body::-webkit-scrollbar-track { background: transparent; }
+    .overlay-body::-webkit-scrollbar-thumb {
+      background: color-mix(in srgb, var(--accent) 70%, transparent);
+      border-radius: 999px;
+    }
     .detail-card {
       max-height: 100%;
       overflow: hidden;
@@ -143,7 +150,7 @@
       font-weight: 600;
       color: var(--muted);
       margin-top: 2px;
-      margin-bottom: -6px;
+      margin-bottom: 5px;
     }
     .checkrow select {
       flex: 1 1 auto;
@@ -223,9 +230,15 @@
       flex-direction: column;
       gap: 8px;
       overflow: auto;
-      scrollbar-width: none;
+      scrollbar-width: thin;
+      scrollbar-color: color-mix(in srgb, var(--accent) 70%, transparent) transparent;
     }
-    .list::-webkit-scrollbar { display: none; }
+    .list::-webkit-scrollbar { width: 6px; height: 6px; }
+    .list::-webkit-scrollbar-track { background: transparent; }
+    .list::-webkit-scrollbar-thumb {
+      background: color-mix(in srgb, var(--accent) 70%, transparent);
+      border-radius: 999px;
+    }
 
     .list.grid {
       display: grid;
@@ -256,9 +269,15 @@
       flex: 1 1 auto;
       min-height: 0;
       overflow: auto;
-      scrollbar-width: none;
+      scrollbar-width: thin;
+      scrollbar-color: color-mix(in srgb, var(--accent) 70%, transparent) transparent;
     }
-    .list.grid .item .main::-webkit-scrollbar { display: none; }
+    .list.grid .item .main::-webkit-scrollbar { width: 6px; height: 6px; }
+    .list.grid .item .main::-webkit-scrollbar-track { background: transparent; }
+    .list.grid .item .main::-webkit-scrollbar-thumb {
+      background: color-mix(in srgb, var(--accent) 70%, transparent);
+      border-radius: 999px;
+    }
     .list.grid.shopping .item .main { overflow: hidden; }
     .list.grid.shopping .chk { display: none; }
     .list.grid .item .content {
@@ -423,6 +442,7 @@
     .badge.due-badge.due-overdue { border-color: rgb(255, 0, 0); color: var(--text); background-color: rgb(255, 0, 0, 0.2); }
     .badge.due-badge.due-today { border-color: #ffa500; color: var(--text); background-color: rgb(255, 165, 0, 0.2); }
     .badge.notify-badge { border-color: var(--accent); color: var(--text); background-color: color-mix(in srgb, var(--accent) 20%, var(--bg)); }
+    .badge.recur-badge { border-color: var(--accent); color: var(--text); background-color: color-mix(in srgb, var(--accent) 20%, var(--bg)); }
     @media (max-width: 420px) {
       .badge.due-badge .due-text { display: none; }
       .badge.due-badge .due-icon { display: inline-block; }
@@ -634,6 +654,16 @@
             <div id="notificationFieldLabel" class="full field-label"></div>
             <div class="full checkrow"><label><input id="notification" type="checkbox" /><span id="notificationLabel"></span></label><div class="select-wrap"><select id="notificationLeadTime"></select><i class="fa-light fa-arrow-down-from-bracket select-icon"></i></div></div>
             <div id="notificationLeadTimeInfo" class="full hint"></div>
+            <div id="recurrenceFieldLabel" class="full field-label"></div>
+            <div id="recurrenceWrap" class="full select-wrap">
+              <select id="recurrence"></select>
+              <i class="fa-light fa-arrow-down-from-bracket select-icon"></i>
+            </div>
+            <div id="recurrenceResetFieldLabel" class="full field-label"></div>
+            <div id="recurrenceResetWrap" class="full select-wrap">
+              <select id="recurrenceResetLeadTime"></select>
+              <i class="fa-light fa-arrow-down-from-bracket select-icon"></i>
+            </div>
             <input id="quantity" type="number" min="0" class="full" />
             <div class="full select-wrap">
               <select id="prio">
@@ -678,31 +708,8 @@
     let sortDir = 'desc';
     let lastOrderVersion = null;
 
-    const sortStorageKey = `TDL.Sort.${location.pathname}${location.search}`;
-
-    function loadSortPrefs() {
-      try {
-        const raw = localStorage.getItem(sortStorageKey);
-        if (!raw) return;
-        const v = JSON.parse(raw);
-        const mode = String(v?.mode || '');
-        const dir = String(v?.dir || '');
-        const allowedModes = new Set(['manual', 'created', 'due', 'priority', 'title']);
-        if (allowedModes.has(mode)) {
-          sortMode = mode;
-        }
-        if (dir === 'asc' || dir === 'desc') {
-          sortDir = dir;
-        }
-      } catch (e) {
-      }
-    }
-
-    function saveSortPrefs() {
-      try {
-        localStorage.setItem(sortStorageKey, JSON.stringify({ mode: sortMode, dir: sortDir }));
-      } catch (e) {
-      }
+    function persistSortPrefs() {
+      requestAction('SetSortPrefs', JSON.stringify({ mode: sortMode, dir: sortDir }));
     }
 
     function applyUiVisibility() {
@@ -725,7 +732,7 @@
       const sel = document.getElementById('sortSelect');
       if (sel) sel.value = 'manual';
       updateSortButtons();
-      saveSortPrefs();
+      persistSortPrefs();
     }
 
     function initTexts() {
@@ -746,6 +753,48 @@
       document.getElementById('due').title = translate('Due');
       document.getElementById('duePlaceholder').textContent = translate('Due placeholder');
       document.getElementById('notificationFieldLabel').textContent = translate('Notification');
+
+      document.getElementById('recurrenceFieldLabel').textContent = translate('Repeat');
+      document.getElementById('recurrenceResetFieldLabel').textContent = translate('Reopen');
+      const rec = document.getElementById('recurrence');
+      rec.innerHTML = '';
+      const recOpts = [
+        { v: 'none', t: 'No repeat' },
+        { v: 'h1', t: 'Hourly' },
+        { v: 'w1', t: 'Every week' },
+        { v: 'w2', t: 'Every 2 weeks' },
+        { v: 'w3', t: 'Every 3 weeks' },
+        { v: 'm1', t: 'Monthly' },
+        { v: 'q1', t: 'Quarterly' },
+        { v: 'y1', t: 'Yearly' }
+      ];
+      for (const o of recOpts) {
+        const el = document.createElement('option');
+        el.value = o.v;
+        el.textContent = translate(o.t);
+        rec.appendChild(el);
+      }
+      rec.value = 'none';
+
+      const rrl = document.getElementById('recurrenceResetLeadTime');
+      rrl.innerHTML = '';
+      const reopenOpts = [
+        { v: 0, t: 'Disabled' },
+        { v: 300, t: '5 minutes' },
+        { v: 86400, t: '1 day before' },
+        { v: 172800, t: '2 days before' },
+        { v: 259200, t: '3 days before' },
+        { v: 604800, t: '1 week before' },
+        { v: 1209600, t: '2 weeks before' },
+        { v: 2592000, t: '1 month before' }
+      ];
+      for (const o of reopenOpts) {
+        const el = document.createElement('option');
+        el.value = String(o.v);
+        el.textContent = translate(o.t);
+        rrl.appendChild(el);
+      }
+      rrl.value = '259200';
 
       document.getElementById('sortLabel').textContent = translate('Sort');
       const sort = document.getElementById('sortSelect');
@@ -919,15 +968,18 @@
       const dueClass = getDueBadgeClass(dueTs);
       const quantity = parseInt(it.quantity) || 0;
       const notification = !!it.notification;
+      const recurrence = String(it.recurrence ?? 'none');
       const prio = String(it.priority ?? 'normal');
       const prioKey = getPriorityKey(prio);
       const prioLabel = getPriorityLabel(prioKey);
+      const showInfoBadges = state.showInfoBadges === true;
 
       const meta = [];
       if (quantity > 0) meta.push(`<span class="badge quantity">${quantity}×</span>`);
-      if (due) meta.push(`<span class="badge due-badge ${dueClass}" title="${escapeHtml(due)}"><i class="fa-light fa-calendar due-icon"></i><span class="due-text">${escapeHtml(due)}</span></span>`);
-      if (notification) meta.push(`<span class="badge notify-badge" title="${escapeHtml(translate('Notification'))}"><i class="fa-light fa-message"></i></span>`);
-      meta.push(`<span class="badge ${prioKey}">${escapeHtml(prioLabel)}</span>`);
+      if (showInfoBadges && due) meta.push(`<span class="badge due-badge ${dueClass}" title="${escapeHtml(due)}"><i class="fa-light fa-calendar due-icon"></i><span class="due-text">${escapeHtml(due)}</span></span>`);
+      if (showInfoBadges && notification) meta.push(`<span class="badge notify-badge" title="${escapeHtml(translate('Notification'))}"><i class="fa-light fa-message"></i></span>`);
+      if (showInfoBadges && recurrence !== 'none') meta.push(`<span class="badge recur-badge" title="${escapeHtml(getRecurrenceTooltip(recurrence, dueTs))}"><i class="fa-light fa-arrows-rotate"></i></span>`);
+      if (showInfoBadges) meta.push(`<span class="badge ${prioKey}">${escapeHtml(prioLabel)}</span>`);
       document.getElementById('detailMeta').innerHTML = meta.join('');
 
       document.getElementById('detailOverlay').classList.add('open');
@@ -963,7 +1015,7 @@
       const enabled = !chk.disabled && chk.checked;
       sel.disabled = !enabled;
       sel.style.display = '';
-      if (!sel.value) {
+      if (sel.value === '' || sel.value === null || typeof sel.value === 'undefined') {
         sel.value = String(getDefaultNotificationLeadTime());
       }
       updateNotificationLeadTimeInfo();
@@ -979,6 +1031,36 @@
         chk.checked = false;
       }
       updateNotificationLeadTimeUI();
+      updateRecurrenceAvailability();
+    }
+
+    function updateRecurrenceAvailability() {
+      const dueStr = document.getElementById('due').value || '';
+      const lbl = document.getElementById('recurrenceFieldLabel');
+      const wrap = document.getElementById('recurrenceWrap');
+      const sel = document.getElementById('recurrence');
+      const enabled = dueStr !== '';
+      if (lbl) lbl.style.display = enabled ? '' : 'none';
+      if (wrap) wrap.style.display = enabled ? '' : 'none';
+      if (!enabled && sel) {
+        sel.value = 'none';
+      }
+
+      updateRecurrenceResetAvailability();
+    }
+
+    function updateRecurrenceResetAvailability() {
+      const dueStr = document.getElementById('due').value || '';
+      const rec = document.getElementById('recurrence');
+      const rlbl = document.getElementById('recurrenceResetFieldLabel');
+      const rwrap = document.getElementById('recurrenceResetWrap');
+      const rsel = document.getElementById('recurrenceResetLeadTime');
+      const enabled = dueStr !== '' && (rec ? (rec.value || 'none') : 'none') !== 'none';
+      if (rlbl) rlbl.style.display = enabled ? '' : 'none';
+      if (rwrap) rwrap.style.display = enabled ? '' : 'none';
+      if (!enabled && rsel) {
+        rsel.value = '0';
+      }
     }
 
     function updateDuePlaceholder() {
@@ -1005,6 +1087,8 @@
       document.getElementById('due').value = '';
       document.getElementById('prio').value = 'normal';
       document.getElementById('quantity').value = '';
+      document.getElementById('recurrence').value = 'none';
+      document.getElementById('recurrenceResetLeadTime').value = '604800';
       updateNotificationAvailability();
     }
 
@@ -1031,9 +1115,17 @@
       document.getElementById('title').value = String(it.title ?? '');
       document.getElementById('info').value = String(it.info ?? '');
       document.getElementById('notification').checked = !!it.notification;
-      document.getElementById('notificationLeadTime').value = String(parseInt(it.notificationLeadTime) || getDefaultNotificationLeadTime());
+      {
+        const lt = parseInt(it.notificationLeadTime);
+        document.getElementById('notificationLeadTime').value = String(Number.isFinite(lt) ? lt : getDefaultNotificationLeadTime());
+      }
       document.getElementById('prio').value = String(it.priority ?? 'normal');
       document.getElementById('due').value = timestampToLocalInput(it.due ?? 0);
+      document.getElementById('recurrence').value = String(it.recurrence ?? 'none');
+      {
+        const rrl = parseInt(it.recurrenceResetLeadTime);
+        document.getElementById('recurrenceResetLeadTime').value = String(Number.isFinite(rrl) ? rrl : 604800);
+      }
       document.getElementById('quantity').value = parseInt(it.quantity) || '';
       updateNotificationAvailability();
       openOverlay('edit');
@@ -1049,6 +1141,7 @@
       const dueClass = getDueBadgeClass(dueTs);
       const rawQty = parseInt(it.quantity);
       const notification = !!it.notification;
+      const recurrence = String(it.recurrence ?? 'none');
       const prio = String(it.priority ?? 'normal');
       const prioKey = getPriorityKey(prio);
       const prioLabel = getPriorityLabel(prioKey);
@@ -1082,7 +1175,10 @@
           : `<span class="badge due-badge ${dueClass}" title="${escapeHtml(due)}"><i class="fa-light fa-calendar due-icon"></i><span class="due-text">${escapeHtml(due)}</span></span>`);
       }
       if (!shoppingMode && showInfoBadges && notification) {
-        meta.push(`<span class="badge notify-badge${useGridView ? ' icon-only' : ''}" title="${escapeHtml(translate('Notification'))}"><i class="fa-light fa-message"></i></span>`);
+        meta.push(`<span class="badge notify-badge${useGridView ? ' icon-only' : ''}" title="${escapeHtml(translate('Notification'))}"><i class="fa-light fa-bell"></i></span>`);
+      }
+      if (!shoppingMode && showInfoBadges && recurrence !== 'none') {
+        meta.push(`<span class="badge recur-badge${useGridView ? ' icon-only' : ''}" title="${escapeHtml(getRecurrenceTooltip(recurrence, dueTs))}"><i class="fa-light fa-arrows-rotate"></i></span>`);
       }
       if (!shoppingMode && showInfoBadges) {
         meta.push(useGridView
@@ -1319,6 +1415,16 @@
         }
       }
       if (data && typeof data === 'object' && data.type === 'state') {
+        if (typeof data.sortMode === 'string') {
+          sortMode = data.sortMode;
+        }
+        if (typeof data.sortDir === 'string') {
+          sortDir = data.sortDir;
+        }
+        const sel = document.getElementById('sortSelect');
+        if (sel) sel.value = sortMode;
+        updateSortButtons();
+
         const ov = parseInt(data.orderVersion) || 0;
         if (lastOrderVersion === null) {
           lastOrderVersion = ov;
@@ -1363,6 +1469,62 @@
       }
     }
 
+    function getRecurrenceLabel(r) {
+      switch (String(r)) {
+        case 'h1':
+          return translate('Hourly');
+        case 'w1':
+          return translate('Every week');
+        case 'w2':
+          return translate('Every 2 weeks');
+        case 'w3':
+          return translate('Every 3 weeks');
+        case 'm1':
+          return translate('Monthly');
+        case 'q1':
+          return translate('Quarterly');
+        case 'y1':
+          return translate('Yearly');
+        default:
+          return translate('No repeat');
+      }
+    }
+
+    function getRecurrenceTooltip(r, dueTs) {
+      const label = getRecurrenceLabel(r);
+      const t = parseInt(dueTs) || 0;
+      if (t <= 0) {
+        return label;
+      }
+      const d = new Date(t * 1000);
+      if (isNaN(d.getTime())) {
+        return label;
+      }
+
+      switch (String(r)) {
+        case 'h1': {
+          return label;
+        }
+        case 'w1':
+        case 'w2':
+        case 'w3': {
+          const weekday = d.toLocaleDateString(undefined, { weekday: 'long' });
+          return `${label} (${weekday})`;
+        }
+        case 'm1':
+        case 'q1': {
+          const day = d.getDate();
+          return `${label} (${day}.)`;
+        }
+        case 'y1': {
+          const date = d.toLocaleDateString(undefined, { month: '2-digit', day: '2-digit' });
+          return `${label} (${date})`;
+        }
+        default:
+          return label;
+      }
+    }
+
     function formatDue(ts) {
       const t = parseInt(ts);
       if (!Number.isFinite(t) || t <= 0) return '';
@@ -1395,28 +1557,27 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-      loadSortPrefs();
       initTexts();
       applyUiVisibility();
 
       document.getElementById('sortSelect').addEventListener('change', () => {
         sortMode = document.getElementById('sortSelect').value || 'created';
         updateSortButtons();
-        saveSortPrefs();
+        persistSortPrefs();
         render();
       });
       document.getElementById('sortAsc').addEventListener('click', () => {
         if (sortMode === 'manual') return;
         sortDir = 'asc';
         updateSortButtons();
-        saveSortPrefs();
+        persistSortPrefs();
         render();
       });
       document.getElementById('sortDesc').addEventListener('click', () => {
         if (sortMode === 'manual') return;
         sortDir = 'desc';
         updateSortButtons();
-        saveSortPrefs();
+        persistSortPrefs();
         render();
       });
       updateSortButtons();
@@ -1426,6 +1587,7 @@
       document.getElementById('due').addEventListener('focus', updateDuePlaceholder);
       document.getElementById('due').addEventListener('blur', updateDuePlaceholder);
       document.getElementById('notification').addEventListener('change', updateNotificationLeadTimeUI);
+      document.getElementById('recurrence').addEventListener('change', updateRecurrenceResetAvailability);
       document.getElementById('notificationLeadTime').addEventListener('click', (e) => e.stopPropagation());
       document.getElementById('notificationLeadTime').addEventListener('change', updateNotificationLeadTimeInfo);
       updateNotificationAvailability();
@@ -1453,10 +1615,20 @@
         const title = (document.getElementById('title').value || '').trim();
         const info = (document.getElementById('info').value || '').trim();
         const notification = !!document.getElementById('notification').checked;
-        const notificationLeadTime = parseInt(document.getElementById('notificationLeadTime').value) || getDefaultNotificationLeadTime();
+        const notificationLeadTime = (() => {
+          const lt = parseInt(document.getElementById('notificationLeadTime').value);
+          return Number.isFinite(lt) ? lt : getDefaultNotificationLeadTime();
+        })();
         const dueStr = document.getElementById('due').value || '';
         const prio = document.getElementById('prio').value || 'normal';
         const quantity = parseInt(document.getElementById('quantity').value) || 0;
+        const recurrence = (dueStr !== '') ? (document.getElementById('recurrence').value || 'none') : 'none';
+        const recurrenceResetLeadTime = (dueStr !== '' && recurrence !== 'none')
+          ? (() => {
+              const v = parseInt(document.getElementById('recurrenceResetLeadTime').value);
+              return Number.isFinite(v) ? v : 604800;
+            })()
+          : 0;
 
         if (title === '') return;
 
@@ -1471,9 +1643,9 @@
         resetForm();
 
         if (editingId > 0) {
-          requestAction('UpdateItem', JSON.stringify({ id: editingId, title, info, due, priority: prio, quantity, notification, notificationLeadTime }));
+          requestAction('UpdateItem', JSON.stringify({ id: editingId, title, info, due, recurrence, recurrenceResetLeadTime, priority: prio, quantity, notification, notificationLeadTime }));
         } else {
-          requestAction('AddItem', JSON.stringify({ title, info, due, priority: prio, quantity, notification, notificationLeadTime }));
+          requestAction('AddItem', JSON.stringify({ title, info, due, recurrence, recurrenceResetLeadTime, priority: prio, quantity, notification, notificationLeadTime }));
         }
         closeOverlay();
       });
