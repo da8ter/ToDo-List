@@ -22,7 +22,7 @@ Dieses Modul stellt eine ToDo-Liste für die Tile-Visualisierung bereit.
   - Anlegen, Bearbeiten, Löschen
   - Erledigt-Status
   - Titel / Info / Anzahl / Priorität / Fälligkeit
-  - Wiederkehrend basierend auf Fälligkeit (stündlich, 1/2/3 Wochen, monatlich, quartalsweise, jährlich)
+  - Wiederkehrend basierend auf Fälligkeit (1/2/3 Wochen, monatlich, quartalsweise, jährlich)
   - Wiederkehrende Tasks werden automatisch vor Fälligkeit wieder auf offen gesetzt (pro Task konfigurierbar)
   - Optional: Benachrichtigung vor Fälligkeit
 - **Sortierung**
@@ -56,16 +56,6 @@ Dieses Modul stellt eine ToDo-Liste für die Tile-Visualisierung bereit.
   - Blendet im Frontend den Button **„Neuer Task“** ein/aus.
 - **Sortieren Button einblenden** (`ShowSorting`)
   - Blendet im Frontend die Sortier-Bedienelemente (Dropdown + Auf/Ab) ein/aus.
-- **Grid-Ansicht verwenden** (`UseGridView`)
-  - Schaltet die Darstellung zwischen Liste und Grid um.
-  - Im Grid werden Badges minimiert (nur Icons).
-- **Anzahl groß anzeigen** (`ShowLargeQuantity`)
-  - Zeigt die Anzahl in 3× größer Darstellung.
-  - Im Grid erscheint sie zentriert unter dem Infotext.
-- **Grid Einkaufslisten Modus** (`GridShoppingListMode`)
-  - Nur im Grid relevant: Kacheln werden kompakter dargestellt.
-  - Die Checkbox zum Erledigen wird ausgeblendet; ein Klick auf die Kachel markiert den Task als erledigt.
-  - Info-Badges (außer Anzahl) werden ausgeblendet.
 - **Info-Badges einblenden** (`ShowInfoBadges`)
   - Blendet in der Hauptansicht die Badges für Priorität, Fälligkeit und Benachrichtigung ein/aus.
 - **Löschen Button einblenden** (`ShowDeleteButton`)
