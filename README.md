@@ -22,7 +22,7 @@ Dieses Modul stellt eine ToDo-Liste für die Tile-Visualisierung bereit.
   - Anlegen, Bearbeiten, Löschen
   - Erledigt-Status
   - Titel / Info / Anzahl / Priorität / Fälligkeit
-  - Wiederkehrend basierend auf Fälligkeit (stündlich, 1/2/3 Wochen, monatlich, quartalsweise, jährlich)
+  - Wiederkehrend basierend auf Fälligkeit (1/2/3 Wochen, monatlich, quartalsweise, jährlich)
   - Wiederkehrende Tasks werden automatisch vor Fälligkeit wieder auf offen gesetzt (pro Task konfigurierbar)
   - Optional: Benachrichtigung vor Fälligkeit
 - **Sortierung**
