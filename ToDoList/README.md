@@ -22,8 +22,9 @@ Dieses Modul stellt eine ToDo-Liste für die Tile-Visualisierung bereit.
   - Anlegen, Bearbeiten, Löschen
   - Erledigt-Status
   - Titel / Info / Anzahl / Priorität / Fälligkeit
-  - Wiederkehrend basierend auf Fälligkeit (1/2/3 Wochen, monatlich, quartalsweise, jährlich)
+  - Wiederkehrend basierend auf Fälligkeit (Individuell: Stunden/Tage/Wochen/Monate/Jahre, sowie 1/2/3 Wochen, monatlich, quartalsweise, jährlich)
   - Wiederkehrende Tasks werden automatisch vor Fälligkeit wieder auf offen gesetzt (pro Task konfigurierbar)
+  - Wieder öffnen: zusätzlich "Sofort" (direkt nach dem Erledigen wieder öffnen)
   - Optional: Benachrichtigung vor Fälligkeit
 - **Sortierung**
   - Datum, Fälligkeit, Priorität, Titel
@@ -69,6 +70,7 @@ Dieses Modul stellt eine ToDo-Liste für die Tile-Visualisierung bereit.
 - **Items** (Listenelement im Konfigurationsformular)
   - Ermöglicht Bearbeitung der Tasks im Backend.
   - **Wiederholen** wird im Bearbeiten-Dialog immer angezeigt. **Wieder öffnen** wird nur angezeigt, wenn **Wiederholen** nicht **Keine** ist.
+  - Wenn **Wiederholen = Individuell**, werden **Einheit** (Stunden/Tage/Wochen/Monate/Jahre) und **Intervall** eingeblendet.
   - Drag&Drop zum Umsortieren ist aktiviert.
   - Die Übernahme ins Frontend erfolgt beim **„Übernehmen“** der Instanz.
 

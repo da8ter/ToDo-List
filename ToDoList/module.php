@@ -260,6 +260,7 @@ class ToDoList extends IPSModuleStrict
                                 'type' => 'Select',
                                 'options' => [
                                     ['caption' => $this->Translate('No repeat'), 'value' => 'none'],
+                                    ['caption' => $this->Translate('Custom'), 'value' => 'custom'],
                                     ['caption' => $this->Translate('Every week'), 'value' => 'w1'],
                                     ['caption' => $this->Translate('Every 2 weeks'), 'value' => 'w2'],
                                     ['caption' => $this->Translate('Every 3 weeks'), 'value' => 'w3'],
@@ -267,6 +268,34 @@ class ToDoList extends IPSModuleStrict
                                     ['caption' => $this->Translate('Quarterly'), 'value' => 'q1'],
                                     ['caption' => $this->Translate('Yearly'), 'value' => 'y1']
                                 ]
+                            ]
+                        ],
+                        [
+                            'caption' => $this->Translate('Unit'),
+                            'name' => 'recurrenceCustomUnit',
+                            'width' => '120px',
+                            'visible' => false,
+                            'add' => 'w',
+                            'edit' => [
+                                'type' => 'Select',
+                                'options' => [
+                                    ['caption' => $this->Translate('Hours'), 'value' => 'h'],
+                                    ['caption' => $this->Translate('Days'), 'value' => 'd'],
+                                    ['caption' => $this->Translate('Weeks'), 'value' => 'w'],
+                                    ['caption' => $this->Translate('Months'), 'value' => 'm'],
+                                    ['caption' => $this->Translate('Years'), 'value' => 'y']
+                                ]
+                            ]
+                        ],
+                        [
+                            'caption' => $this->Translate('Interval'),
+                            'name' => 'recurrenceCustomValue',
+                            'width' => '90px',
+                            'visible' => false,
+                            'add' => 1,
+                            'edit' => [
+                                'type' => 'NumberSpinner',
+                                'minimum' => 1
                             ]
                         ],
                         [
@@ -279,6 +308,10 @@ class ToDoList extends IPSModuleStrict
                                 'type' => 'Select',
                                 'options' => [
                                     ['caption' => $this->Translate('Disabled'), 'value' => 0],
+                                    ['caption' => $this->Translate('30 minutes'), 'value' => 1800],
+                                    ['caption' => $this->Translate('1 hour'), 'value' => 3600],
+                                    ['caption' => $this->Translate('6 hours'), 'value' => 21600],
+                                    ['caption' => $this->Translate('12 hours'), 'value' => 43200],
                                     ['caption' => $this->Translate('1 day before'), 'value' => 86400],
                                     ['caption' => $this->Translate('2 days before'), 'value' => 172800],
                                     ['caption' => $this->Translate('3 days before'), 'value' => 259200],
@@ -352,9 +385,23 @@ class ToDoList extends IPSModuleStrict
         }
     }
 
-    public function Export(): string
+    public function GetVisualizationTile(): string
     {
-        return $this->ReadAttributeString('Items');
+        $path = __DIR__ . '/module.html';
+        $html = @file_get_contents($path);
+        if (!is_string($html)) {
+            $exists = file_exists($path) ? 'yes' : 'no';
+            $readable = is_readable($path) ? 'yes' : 'no';
+            $size = file_exists($path) ? (string)@filesize($path) : 'n/a';
+            $err = error_get_last();
+            $errMsg = is_array($err) && isset($err['message']) ? (string)$err['message'] : '';
+            IPS_LogMessage('ToDoList', 'GetVisualizationTile: module.html could not be loaded. path=' . $path . ' exists=' . $exists . ' readable=' . $readable . ' size=' . $size . ' err=' . $errMsg);
+            return '';
+        }
+        if (strlen($html) < 200) {
+            IPS_LogMessage('ToDoList', 'GetVisualizationTile: module.html loaded but is very short. bytes=' . strlen($html) . ' head=' . substr($html, 0, 80));
+        }
+        return $html;
     }
 
     public function DebugRecurrence(): string
@@ -435,15 +482,33 @@ class ToDoList extends IPSModuleStrict
         $due = (int)($Item['due'] ?? 0);
         $recurrence = $this->NormalizeRecurrence($Item['recurrence'] ?? 'none', $due);
         $recurrenceResetLeadTime = $this->NormalizeRecurrenceResetLeadTime($Item['recurrenceResetLeadTime'] ?? 0, $recurrence);
+        $recurrenceCustomUnit = 'w';
+        $recurrenceCustomValue = 1;
+        if ($recurrence === 'custom') {
+            $recurrenceCustomUnit = $this->NormalizeRecurrenceCustomUnit($Item['recurrenceCustomUnit'] ?? null);
+            $recurrenceCustomValue = $this->NormalizeRecurrenceCustomValue($Item['recurrenceCustomValue'] ?? null);
+        }
         $notification = (bool)($Item['notification'] ?? false);
         if ($due <= 0) {
             $notification = false;
+            $recurrence = 'none';
+            $recurrenceResetLeadTime = 0;
         }
 
-        $leadTime = $this->ReadPropertyInteger('NotificationLeadTime');
-        $itemLeadTime = $leadTime;
+        $defaultLeadTime = $this->NormalizeNotificationLeadTimeDefault((int)$this->ReadPropertyInteger('NotificationLeadTime'));
+        $itemLeadTime = $defaultLeadTime;
         if (array_key_exists('notificationLeadTime', $Item)) {
-            $itemLeadTime = max(0, (int)$Item['notificationLeadTime']);
+            $itemLeadTime = $this->NormalizeNotificationLeadTime($Item['notificationLeadTime'], $defaultLeadTime);
+        }
+
+        if ($due > 0) {
+            $limit = $this->GetLeadTimeLimitSeconds($due, $now, $recurrence, $recurrenceCustomUnit, $recurrenceCustomValue);
+            $itemLeadTime = $this->ClampLeadTimeToLimit($itemLeadTime, $limit, [0, 300, 600, 1800, 3600, 18000, 43200]);
+        }
+
+        if ($due > 0 && $recurrence !== 'none') {
+            $interval = $this->GetRecurrenceIntervalSeconds($due, $recurrence, $recurrenceCustomUnit, $recurrenceCustomValue);
+            $recurrenceResetLeadTime = $this->ClampLeadTimeToInterval($recurrenceResetLeadTime, $interval, [1800, 3600, 21600, 43200, 86400, 172800, 259200, 604800, 1209600, 2592000]);
         }
 
         $newItem = [
@@ -453,6 +518,8 @@ class ToDoList extends IPSModuleStrict
             'done'      => (bool)($Item['done'] ?? false),
             'due'       => $due,
             'recurrence' => $recurrence,
+            'recurrenceCustomUnit' => $recurrenceCustomUnit,
+            'recurrenceCustomValue' => $recurrenceCustomValue,
             'recurrenceResetLeadTime' => $recurrenceResetLeadTime,
             'priority'  => (string)($Item['priority'] ?? 'normal'),
             'quantity'  => (int)($Item['quantity'] ?? 0),
@@ -477,6 +544,7 @@ class ToDoList extends IPSModuleStrict
         }
 
         $items = $this->LoadItems();
+        $now = time();
         $deleteCompleted = $this->ReadPropertyBoolean('DeleteCompletedTasks');
         for ($i = 0; $i < count($items); $i++) {
             if (((int)($items[$i]['id'] ?? 0)) !== $id) {
@@ -508,6 +576,19 @@ class ToDoList extends IPSModuleStrict
                 $items[$i]['recurrence'] = 'none';
             }
 
+            if (array_key_exists('recurrenceCustomUnit', $Data) || array_key_exists('recurrenceCustomValue', $Data) || array_key_exists('recurrence', $Data) || array_key_exists('due', $Data)) {
+                if ((string)($items[$i]['recurrence'] ?? 'none') === 'custom') {
+                    $items[$i]['recurrenceCustomUnit'] = $this->NormalizeRecurrenceCustomUnit($Data['recurrenceCustomUnit'] ?? ($items[$i]['recurrenceCustomUnit'] ?? null));
+                    $items[$i]['recurrenceCustomValue'] = $this->NormalizeRecurrenceCustomValue($Data['recurrenceCustomValue'] ?? ($items[$i]['recurrenceCustomValue'] ?? null));
+                } else {
+                    $items[$i]['recurrenceCustomUnit'] = 'w';
+                    $items[$i]['recurrenceCustomValue'] = 1;
+                }
+            } elseif (!array_key_exists('recurrenceCustomUnit', $items[$i])) {
+                $items[$i]['recurrenceCustomUnit'] = 'w';
+                $items[$i]['recurrenceCustomValue'] = 1;
+            }
+
             if (array_key_exists('recurrenceResetLeadTime', $Data) || array_key_exists('recurrence', $Data) || array_key_exists('due', $Data)) {
                 $rec = (string)($items[$i]['recurrence'] ?? 'none');
                 $items[$i]['recurrenceResetLeadTime'] = $this->NormalizeRecurrenceResetLeadTime($Data['recurrenceResetLeadTime'] ?? ($items[$i]['recurrenceResetLeadTime'] ?? null), $rec);
@@ -528,9 +609,34 @@ class ToDoList extends IPSModuleStrict
                 $items[$i]['notification'] = (bool)$Data['notification'];
             }
 
-            if (array_key_exists('notificationLeadTime', $Data)) {
-                $resetNotify = $resetNotify || ((int)($items[$i]['notificationLeadTime'] ?? 0) !== (int)$Data['notificationLeadTime']);
-                $items[$i]['notificationLeadTime'] = max(0, (int)$Data['notificationLeadTime']);
+            $defaultLeadTime = $this->NormalizeNotificationLeadTimeDefault((int)$this->ReadPropertyInteger('NotificationLeadTime'));
+            if (array_key_exists('notificationLeadTime', $Data) || array_key_exists('notificationLeadTime', $items[$i])) {
+                $currentStored = (int)($items[$i]['notificationLeadTime'] ?? $defaultLeadTime);
+                $newLeadTime = $Data['notificationLeadTime'] ?? ($items[$i]['notificationLeadTime'] ?? $defaultLeadTime);
+                $newLeadTime = $this->NormalizeNotificationLeadTime($newLeadTime, $defaultLeadTime);
+                $resetNotify = $resetNotify || ($currentStored !== $newLeadTime);
+                $items[$i]['notificationLeadTime'] = $newLeadTime;
+            }
+
+            $due = (int)($items[$i]['due'] ?? 0);
+            $recurrence = (string)($items[$i]['recurrence'] ?? 'none');
+            if ($due > 0 && $recurrence !== 'none') {
+                $unit = (string)($items[$i]['recurrenceCustomUnit'] ?? 'w');
+                $val = (int)($items[$i]['recurrenceCustomValue'] ?? 1);
+                $interval = $this->GetRecurrenceIntervalSeconds($due, $recurrence, $unit, $val);
+                $newReopen = $this->ClampLeadTimeToInterval((int)($items[$i]['recurrenceResetLeadTime'] ?? 0), $interval, [1800, 3600, 21600, 43200, 86400, 172800, 259200, 604800, 1209600, 2592000]);
+                $items[$i]['recurrenceResetLeadTime'] = $newReopen;
+            }
+
+            if ($due > 0 && array_key_exists('notificationLeadTime', $items[$i])) {
+                $unit = (string)($items[$i]['recurrenceCustomUnit'] ?? 'w');
+                $val = (int)($items[$i]['recurrenceCustomValue'] ?? 1);
+                $limit = $this->GetLeadTimeLimitSeconds($due, $now, $recurrence, $unit, $val);
+                $newLeadTime = $this->ClampLeadTimeToLimit((int)$items[$i]['notificationLeadTime'], $limit, [0, 300, 600, 1800, 3600, 18000, 43200]);
+                if ((int)$items[$i]['notificationLeadTime'] !== $newLeadTime) {
+                    $resetNotify = true;
+                    $items[$i]['notificationLeadTime'] = $newLeadTime;
+                }
             }
 
             if (((int)($items[$i]['due'] ?? 0)) <= 0) {
@@ -538,13 +644,15 @@ class ToDoList extends IPSModuleStrict
                 $resetNotify = true;
                 $items[$i]['recurrence'] = 'none';
                 $items[$i]['recurrenceResetLeadTime'] = 0;
+                $items[$i]['recurrenceCustomUnit'] = 'w';
+                $items[$i]['recurrenceCustomValue'] = 1;
             }
 
             if ($resetNotify) {
                 $items[$i]['notifiedFor'] = 0;
             }
 
-            $items[$i]['updatedAt'] = time();
+            $items[$i]['updatedAt'] = $now;
             break;
         }
 
@@ -573,18 +681,25 @@ class ToDoList extends IPSModuleStrict
                 $newDone = !$oldDone;
             }
 
-            if ($deleteCompleted && $newDone) {
+            $recurrence = (string)($items[$i]['recurrence'] ?? 'none');
+            if ($newDone && $deleteCompleted && $this->NormalizeRecurrence($recurrence, (int)($items[$i]['due'] ?? 0)) === 'none') {
                 unset($items[$i]);
                 $this->SaveItems(array_values($items));
                 return;
             }
 
             $items[$i]['done'] = $newDone;
-            $recurrence = (string)($items[$i]['recurrence'] ?? 'none');
             if ($newDone && $recurrence !== 'none') {
                 $due = (int)($items[$i]['due'] ?? 0);
                 if ($due > 0) {
-                    $items[$i]['due'] = $this->GetNextDue($due, $recurrence);
+                    $unit = (string)($items[$i]['recurrenceCustomUnit'] ?? 'w');
+                    $val = (int)($items[$i]['recurrenceCustomValue'] ?? 1);
+                    $items[$i]['due'] = $this->GetNextDue($due, $recurrence, $unit, $val);
+                    $items[$i]['notifiedFor'] = 0;
+                }
+
+                if ((int)($items[$i]['recurrenceResetLeadTime'] ?? 0) === -1) {
+                    $items[$i]['done'] = false;
                     $items[$i]['notifiedFor'] = 0;
                 }
             }
@@ -648,28 +763,6 @@ class ToDoList extends IPSModuleStrict
         $this->SaveItems($newItems);
     }
 
-    public function GetVisualizationTile(): string
-    {
-        return file_get_contents(__DIR__ . '/module.html');
-    }
-
-    private function LoadItems(): array
-    {
-        $data = json_decode($this->ReadAttributeString('Items'), true);
-        if (!is_array($data)) {
-            return [];
-        }
-
-        foreach ($data as &$item) {
-            if (is_array($item) && array_key_exists('icon', $item)) {
-                unset($item['icon']);
-            }
-        }
-        unset($item);
-
-        return $data;
-    }
-
     private function SyncItemsFromConfiguration(): void
     {
         $last = $this->ReadAttributeInteger('LastConfigFormRequest');
@@ -730,12 +823,20 @@ class ToDoList extends IPSModuleStrict
             $old = $existing[$id] ?? [];
             $dueTs = $this->SelectDateTimeToTimestamp($row['due'] ?? null);
             $recurrence = $this->NormalizeRecurrence($row['recurrence'] ?? ($old['recurrence'] ?? 'none'), $dueTs);
-            $notification = (bool)($row['notification'] ?? false);
-            $notificationLeadTime = (int)($old['notificationLeadTime'] ?? $this->ReadPropertyInteger('NotificationLeadTime'));
-            if ($notification && array_key_exists('notificationLeadTime', $row) && is_numeric($row['notificationLeadTime'])) {
-                $notificationLeadTime = (int)$row['notificationLeadTime'];
+            $recurrenceCustomUnit = (string)($old['recurrenceCustomUnit'] ?? 'w');
+            $recurrenceCustomValue = (int)($old['recurrenceCustomValue'] ?? 1);
+            if ($recurrence === 'custom') {
+                $recurrenceCustomUnit = $this->NormalizeRecurrenceCustomUnit($row['recurrenceCustomUnit'] ?? $recurrenceCustomUnit);
+                $recurrenceCustomValue = $this->NormalizeRecurrenceCustomValue($row['recurrenceCustomValue'] ?? $recurrenceCustomValue);
             }
-            $notificationLeadTime = max(0, $notificationLeadTime);
+            $notification = (bool)($row['notification'] ?? false);
+            $defaultLeadTime = $this->NormalizeNotificationLeadTimeDefault((int)$this->ReadPropertyInteger('NotificationLeadTime'));
+            $notificationLeadTime = (int)($old['notificationLeadTime'] ?? $defaultLeadTime);
+            if ($notification && array_key_exists('notificationLeadTime', $row) && is_numeric($row['notificationLeadTime'])) {
+                $notificationLeadTime = $this->NormalizeNotificationLeadTime($row['notificationLeadTime'], $defaultLeadTime);
+            } else {
+                $notificationLeadTime = $this->NormalizeNotificationLeadTime($notificationLeadTime, $defaultLeadTime);
+            }
 
             $recurrenceResetLeadTime = $row['recurrenceResetLeadTime'] ?? ($old['recurrenceResetLeadTime'] ?? null);
             $recurrenceResetLeadTime = $this->NormalizeRecurrenceResetLeadTime($recurrenceResetLeadTime, $recurrence);
@@ -744,10 +845,22 @@ class ToDoList extends IPSModuleStrict
                 $notifiedFor = 0;
             }
 
+            if ($dueTs > 0) {
+                $limit = $this->GetLeadTimeLimitSeconds($dueTs, $now, $recurrence, $recurrenceCustomUnit, $recurrenceCustomValue);
+                $notificationLeadTime = $this->ClampLeadTimeToLimit($notificationLeadTime, $limit, [0, 300, 600, 1800, 3600, 18000, 43200]);
+            }
+
+            if ($dueTs > 0 && $recurrence !== 'none') {
+                $interval = $this->GetRecurrenceIntervalSeconds($dueTs, $recurrence, $recurrenceCustomUnit, $recurrenceCustomValue);
+                $recurrenceResetLeadTime = $this->ClampLeadTimeToInterval($recurrenceResetLeadTime, $interval, [1800, 3600, 21600, 43200, 86400, 172800, 259200, 604800, 1209600, 2592000]);
+            }
+
             if ($dueTs <= 0) {
                 $notification = false;
                 $recurrence = 'none';
                 $recurrenceResetLeadTime = 0;
+                $recurrenceCustomUnit = 'w';
+                $recurrenceCustomValue = 1;
                 $notifiedFor = 0;
             }
 
@@ -762,6 +875,8 @@ class ToDoList extends IPSModuleStrict
                 'notifiedFor'  => $notifiedFor,
                 'due'       => $dueTs,
                 'recurrence' => $recurrence,
+                'recurrenceCustomUnit' => $recurrenceCustomUnit,
+                'recurrenceCustomValue' => $recurrenceCustomValue,
                 'recurrenceResetLeadTime' => $recurrenceResetLeadTime,
                 'priority'  => $prio,
                 'createdAt' => $createdAt,
@@ -869,6 +984,24 @@ class ToDoList extends IPSModuleStrict
         return 0;
     }
 
+    private function LoadItems(): array
+    {
+        $data = json_decode($this->ReadAttributeString('Items'), true);
+        if (!is_array($data)) {
+            return [];
+        }
+
+        $items = [];
+        foreach ($data as $item) {
+            if (is_array($item)) {
+                $items[] = $item;
+            }
+        }
+        unset($item);
+
+        return $items;
+    }
+
     private function SaveItems(array $Items): void
     {
         $this->WriteAttributeString('Items', json_encode($Items));
@@ -925,6 +1058,8 @@ class ToDoList extends IPSModuleStrict
                 'quantity' => (int)($it['quantity'] ?? 0),
                 'due'      => json_encode($this->TimestampToSelectDateTime($due)),
                 'recurrence' => (string)($it['recurrence'] ?? 'none'),
+                'recurrenceCustomUnit' => (string)($it['recurrenceCustomUnit'] ?? 'w'),
+                'recurrenceCustomValue' => (int)($it['recurrenceCustomValue'] ?? 1),
                 'recurrenceResetLeadTime' => (int)($it['recurrenceResetLeadTime'] ?? 172800),
                 'priority' => (string)($it['priority'] ?? 'normal')
             ];
@@ -947,6 +1082,7 @@ class ToDoList extends IPSModuleStrict
         $tPriority = json_encode($this->Translate('Priority'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
         $tNoRepeat = json_encode($this->Translate('No repeat'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $tCustom = json_encode($this->Translate('Custom'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $tEveryWeek = json_encode($this->Translate('Every week'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $tEvery2Weeks = json_encode($this->Translate('Every 2 weeks'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $tEvery3Weeks = json_encode($this->Translate('Every 3 weeks'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
@@ -954,7 +1090,16 @@ class ToDoList extends IPSModuleStrict
         $tQuarterly = json_encode($this->Translate('Quarterly'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $tYearly = json_encode($this->Translate('Yearly'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
+        $tUnit = json_encode($this->Translate('Unit'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $tInterval = json_encode($this->Translate('Interval'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $tHours = json_encode($this->Translate('Hours'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $tDays = json_encode($this->Translate('Days'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $tWeeks = json_encode($this->Translate('Weeks'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $tMonths = json_encode($this->Translate('Months'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $tYears = json_encode($this->Translate('Years'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
         $tDisabled = json_encode($this->Translate('Disabled'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $tImmediate = json_encode($this->Translate('Immediate'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $t1DayBefore = json_encode($this->Translate('1 day before'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $t2DaysBefore = json_encode($this->Translate('2 days before'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $t3DaysBefore = json_encode($this->Translate('3 days before'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
@@ -972,10 +1117,12 @@ class ToDoList extends IPSModuleStrict
         $t30Min = json_encode($this->Translate('30 minutes'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $t1H = json_encode($this->Translate('1 hour'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $t5H = json_encode($this->Translate('5 hours'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $t6H = json_encode($this->Translate('6 hours'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $t12H = json_encode($this->Translate('12 hours'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
         return '$recurrenceValue = (string)($ItemsTable[\'recurrence\'] ?? \'none\');' . PHP_EOL .
             '$showReopen = $recurrenceValue !== \'none\';' . PHP_EOL .
+            '$showCustom = $recurrenceValue === \'custom\';' . PHP_EOL .
             'return [' . PHP_EOL .
             '  [\'type\' => \'NumberSpinner\', \'name\' => \'id\', \'caption\' => ' . $tID . ', \'visible\' => false, \'enabled\' => false],' . PHP_EOL .
             '  [\'type\' => \'CheckBox\', \'name\' => \'done\', \'caption\' => ' . $tDone . '],' . PHP_EOL .
@@ -990,6 +1137,7 @@ class ToDoList extends IPSModuleStrict
             '  [\'type\' => \'SelectDateTime\', \'name\' => \'due\', \'caption\' => ' . $tDue . '],' . PHP_EOL .
             '  [\'type\' => \'Select\', \'name\' => \'recurrence\', \'caption\' => ' . $tRepeat . ', \'onChange\' => \'IPS_RequestAction(' . $this->InstanceID . ', "ItemsTableRecurrenceChanged", $recurrence);\', \'options\' => [' . PHP_EOL .
             '    [\'caption\' => ' . $tNoRepeat . ', \'value\' => \'none\'],' . PHP_EOL .
+            '    [\'caption\' => ' . $tCustom . ', \'value\' => \'custom\'],' . PHP_EOL .
             '    [\'caption\' => ' . $tEveryWeek . ', \'value\' => \'w1\'],' . PHP_EOL .
             '    [\'caption\' => ' . $tEvery2Weeks . ', \'value\' => \'w2\'],' . PHP_EOL .
             '    [\'caption\' => ' . $tEvery3Weeks . ', \'value\' => \'w3\'],' . PHP_EOL .
@@ -997,8 +1145,21 @@ class ToDoList extends IPSModuleStrict
             '    [\'caption\' => ' . $tQuarterly . ', \'value\' => \'q1\'],' . PHP_EOL .
             '    [\'caption\' => ' . $tYearly . ', \'value\' => \'y1\']' . PHP_EOL .
             '  ]],' . PHP_EOL .
+            '  [\'type\' => \'Select\', \'name\' => \'recurrenceCustomUnit\', \'caption\' => ' . $tUnit . ', \'visible\' => $showCustom, \'options\' => [' . PHP_EOL .
+            '    [\'caption\' => ' . $tHours . ', \'value\' => \'h\'],' . PHP_EOL .
+            '    [\'caption\' => ' . $tDays . ', \'value\' => \'d\'],' . PHP_EOL .
+            '    [\'caption\' => ' . $tWeeks . ', \'value\' => \'w\'],' . PHP_EOL .
+            '    [\'caption\' => ' . $tMonths . ', \'value\' => \'m\'],' . PHP_EOL .
+            '    [\'caption\' => ' . $tYears . ', \'value\' => \'y\']' . PHP_EOL .
+            '  ]],' . PHP_EOL .
+            '  [\'type\' => \'NumberSpinner\', \'name\' => \'recurrenceCustomValue\', \'caption\' => ' . $tInterval . ', \'visible\' => $showCustom, \'minimum\' => 1],' . PHP_EOL .
             '  [\'type\' => \'Select\', \'name\' => \'recurrenceResetLeadTime\', \'caption\' => ' . $tReopen . ', \'visible\' => $showReopen, \'options\' => [' . PHP_EOL .
             '    [\'caption\' => ' . $tDisabled . ', \'value\' => 0],' . PHP_EOL .
+            '    [\'caption\' => ' . $tImmediate . ', \'value\' => -1],' . PHP_EOL .
+            '    [\'caption\' => ' . $t30Min . ', \'value\' => 1800],' . PHP_EOL .
+            '    [\'caption\' => ' . $t1H . ', \'value\' => 3600],' . PHP_EOL .
+            '    [\'caption\' => ' . $t6H . ', \'value\' => 21600],' . PHP_EOL .
+            '    [\'caption\' => ' . $t12H . ', \'value\' => 43200],' . PHP_EOL .
             '    [\'caption\' => ' . $t1DayBefore . ', \'value\' => 86400],' . PHP_EOL .
             '    [\'caption\' => ' . $t2DaysBefore . ', \'value\' => 172800],' . PHP_EOL .
             '    [\'caption\' => ' . $t3DaysBefore . ', \'value\' => 259200],' . PHP_EOL .
@@ -1023,9 +1184,16 @@ class ToDoList extends IPSModuleStrict
     {
         $recurrence = (string)$RecurrenceValue;
         $showReopen = $recurrence !== 'none';
+        $showCustom = $recurrence === 'custom';
         $this->UpdateFormField('recurrenceResetLeadTime', 'visible', $showReopen);
+        $this->UpdateFormField('recurrenceCustomUnit', 'visible', $showCustom);
+        $this->UpdateFormField('recurrenceCustomValue', 'visible', $showCustom);
         if (!$showReopen) {
             $this->UpdateFormField('recurrenceResetLeadTime', 'value', 0);
+        }
+        if (!$showCustom) {
+            $this->UpdateFormField('recurrenceCustomUnit', 'value', 'w');
+            $this->UpdateFormField('recurrenceCustomValue', 'value', 1);
         }
     }
 
@@ -1195,6 +1363,26 @@ class ToDoList extends IPSModuleStrict
             }
 
             $leadTime = $this->NormalizeRecurrenceResetLeadTime($item['recurrenceResetLeadTime'] ?? null, $recurrence);
+            if ($leadTime === -1) {
+                if ($due <= $now) {
+                    $unit = (string)($item['recurrenceCustomUnit'] ?? 'w');
+                    $val = (int)($item['recurrenceCustomValue'] ?? 1);
+                    $newDue = $this->GetNextDue($due, $recurrence, $unit, $val);
+                    $guard = 0;
+                    while ($newDue > 0 && $newDue <= $now && $guard < 24) {
+                        $newDue = $this->GetNextDue($newDue, $recurrence, $unit, $val);
+                        $guard++;
+                    }
+                    if ($newDue !== $due) {
+                        $item['due'] = $newDue;
+                    }
+                }
+                $item['done'] = false;
+                $item['notifiedFor'] = 0;
+                $item['updatedAt'] = $now;
+                $changed = true;
+                continue;
+            }
             $windowStart = $leadTime - $interval;
             if ($leadTime <= 0) {
                 continue;
@@ -1210,10 +1398,12 @@ class ToDoList extends IPSModuleStrict
             }
 
             if ($left < $windowStart) {
-                $newDue = $this->GetNextDue($due, $recurrence);
+                $unit = (string)($item['recurrenceCustomUnit'] ?? 'w');
+                $val = (int)($item['recurrenceCustomValue'] ?? 1);
+                $newDue = $this->GetNextDue($due, $recurrence, $unit, $val);
                 $guard = 0;
                 while ($newDue > 0 && $newDue <= $now && $guard < 24) {
-                    $newDue = $this->GetNextDue($newDue, $recurrence);
+                    $newDue = $this->GetNextDue($newDue, $recurrence, $unit, $val);
                     $guard++;
                 }
                 if ($newDue !== $due) {
@@ -1232,7 +1422,7 @@ class ToDoList extends IPSModuleStrict
         }
     }
 
-    private function UpdateRecurrenceTimer(array $Items = null): void
+    private function UpdateRecurrenceTimer(?array $Items = null): void
     {
         if ($Items === null) {
             $Items = $this->LoadItems();
@@ -1253,11 +1443,38 @@ class ToDoList extends IPSModuleStrict
             return 'none';
         }
         $r = is_string($Value) ? strtolower(trim($Value)) : 'none';
-        $allowed = ['none', 'w1', 'w2', 'w3', 'm1', 'q1', 'y1'];
+        $allowed = ['none', 'custom', 'w1', 'w2', 'w3', 'm1', 'q1', 'y1'];
         if (!in_array($r, $allowed, true)) {
             return 'none';
         }
         return $r;
+    }
+
+    private function NormalizeRecurrenceCustomUnit(mixed $Value): string
+    {
+        $u = is_string($Value) ? strtolower(trim($Value)) : '';
+        $allowed = ['h', 'd', 'w', 'm', 'y'];
+        if (!in_array($u, $allowed, true)) {
+            return 'w';
+        }
+        return $u;
+    }
+
+    private function NormalizeRecurrenceCustomValue(mixed $Value): int
+    {
+        $v = null;
+        if (is_int($Value)) {
+            $v = $Value;
+        } elseif (is_numeric($Value)) {
+            $v = (int)$Value;
+        }
+        if ($v === null) {
+            return 1;
+        }
+        if ($v <= 0) {
+            return 1;
+        }
+        return min($v, 1000);
     }
 
     private function NormalizeRecurrenceResetLeadTime(mixed $Value, string $Recurrence): int
@@ -1280,6 +1497,9 @@ class ToDoList extends IPSModuleStrict
         if ($v === null) {
             return 604800;
         }
+        if ($v === -1) {
+            return -1;
+        }
         if ($v === 0) {
             return 0;
         }
@@ -1287,20 +1507,160 @@ class ToDoList extends IPSModuleStrict
             return 604800;
         }
 
-        $allowed = [86400, 172800, 259200, 604800, 1209600, 2592000];
+        $allowed = [-1, 1800, 3600, 21600, 43200, 86400, 172800, 259200, 604800, 1209600, 2592000];
         if (!in_array($v, $allowed, true)) {
             return 604800;
         }
         return $v;
     }
 
-    private function GetNextDue(int $Due, string $Recurrence): int
+    private function NormalizeNotificationLeadTimeDefault(int $Value): int
+    {
+        $v = max(0, $Value);
+        $allowed = [0, 300, 600, 1800, 3600, 18000, 43200];
+        if (!in_array($v, $allowed, true)) {
+            return 600;
+        }
+        return $v;
+    }
+
+    private function NormalizeNotificationLeadTime(mixed $Value, int $Default): int
+    {
+        if ($Value === null) {
+            return $Default;
+        }
+
+        $v = null;
+        if (is_int($Value)) {
+            $v = $Value;
+        } elseif (is_numeric($Value)) {
+            $v = (int)$Value;
+        }
+        if ($v === null) {
+            return $Default;
+        }
+        if ($v < 0) {
+            return $Default;
+        }
+
+        $allowed = [0, 300, 600, 1800, 3600, 18000, 43200];
+        if (!in_array($v, $allowed, true)) {
+            return $Default;
+        }
+        return $v;
+    }
+
+    private function GetRecurrenceIntervalSeconds(int $Due, string $Recurrence, string $CustomUnit = 'w', int $CustomValue = 1): int
+    {
+        if ($Due <= 0) {
+            return 0;
+        }
+        $r = $this->NormalizeRecurrence($Recurrence, $Due);
+        if ($r === 'none') {
+            return 0;
+        }
+        $next = $this->GetNextDue($Due, $r, $CustomUnit, $CustomValue);
+        $delta = $next - $Due;
+        return $delta > 0 ? $delta : 0;
+    }
+
+    private function ClampLeadTimeToInterval(int $LeadTime, int $Interval, array $Allowed): int
+    {
+        if ($LeadTime === -1) {
+            return -1;
+        }
+        $LeadTime = max(0, $LeadTime);
+        if ($Interval <= 0) {
+            return $LeadTime;
+        }
+        if ($LeadTime === 0) {
+            return 0;
+        }
+        if ($LeadTime < $Interval) {
+            return $LeadTime;
+        }
+
+        $best = 0;
+        foreach ($Allowed as $v) {
+            $v = (int)$v;
+            if ($v < $Interval && $v > $best) {
+                $best = $v;
+            }
+        }
+        return $best;
+    }
+
+    private function GetLeadTimeLimitSeconds(int $Due, int $Now, string $Recurrence, string $CustomUnit = 'w', int $CustomValue = 1): int
+    {
+        if ($Due <= 0) {
+            return 0;
+        }
+        $limit = max(0, $Due - $Now);
+        if ($limit <= 0) {
+            return 0;
+        }
+
+        $r = $this->NormalizeRecurrence($Recurrence, $Due);
+        if ($r !== 'none') {
+            $interval = $this->GetRecurrenceIntervalSeconds($Due, $r, $CustomUnit, $CustomValue);
+            if ($interval > 0) {
+                $limit = min($limit, $interval);
+            }
+        }
+
+        return $limit;
+    }
+
+    private function ClampLeadTimeToLimit(int $LeadTime, int $Limit, array $Allowed): int
+    {
+        $LeadTime = max(0, $LeadTime);
+        if ($LeadTime === 0) {
+            return 0;
+        }
+        if ($Limit <= 0) {
+            return 0;
+        }
+        if ($LeadTime < $Limit) {
+            return $LeadTime;
+        }
+
+        $best = 0;
+        foreach ($Allowed as $v) {
+            $v = (int)$v;
+            if ($v === 0) {
+                continue;
+            }
+            if ($v < $Limit && $v > $best) {
+                $best = $v;
+            }
+        }
+        return $best;
+    }
+
+    private function GetNextDue(int $Due, string $Recurrence, string $CustomUnit = '', int $CustomValue = 0): int
     {
         if ($Due <= 0) {
             return 0;
         }
         $r = $this->NormalizeRecurrence($Recurrence, $Due);
         switch ($r) {
+            case 'custom':
+                $u = $this->NormalizeRecurrenceCustomUnit($CustomUnit);
+                $v = $this->NormalizeRecurrenceCustomValue($CustomValue);
+                switch ($u) {
+                    case 'h':
+                        return $Due + (3600 * $v);
+                    case 'd':
+                        return $Due + (86400 * $v);
+                    case 'w':
+                        return $Due + (604800 * $v);
+                    case 'm':
+                        return $this->AddMonthsClamped($Due, $v);
+                    case 'y':
+                        return $this->AddMonthsClamped($Due, 12 * $v);
+                    default:
+                        return $Due;
+                }
             case 'w1':
                 return $Due + 604800;
             case 'w2':

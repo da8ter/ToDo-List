@@ -7,7 +7,7 @@
     :root {
       --bg: var(--card-color);
       --card: var(--card-color);
-      --text: var(--content-color,);
+      --text: var(--content-color);
       --muted: color-mix(in srgb, var(--content-color) 30%, transparent);
       --border: color-mix(in srgb, var(--accent-color) 30%, transparent);
       --accent: var(--accent-color);
@@ -646,6 +646,15 @@
           <div class="add">
             <input id="title" type="text" class="full" />
             <input id="info" type="text" class="full" />
+            <input id="quantity" type="number" min="0" class="full" />
+            <div class="full select-wrap">
+              <select id="prio">
+                <option value="low"></option>
+                <option value="normal" selected></option>
+                <option value="high"></option>
+              </select>
+              <i class="fa-light fa-arrow-down-from-bracket select-icon"></i>
+            </div>
             <div class="full date-input">
               <input id="due" type="datetime-local" />
               <div id="duePlaceholder" class="date-placeholder"></div>
@@ -659,18 +668,16 @@
               <select id="recurrence"></select>
               <i class="fa-light fa-arrow-down-from-bracket select-icon"></i>
             </div>
+            <div id="recurrenceCustomWrap" class="full" style="display:none; gap: 8px; align-items: center;">
+              <div class="select-wrap" style="flex: 1 1 auto; min-width: 0;">
+                <select id="recurrenceCustomUnit"></select>
+                <i class="fa-light fa-arrow-down-from-bracket select-icon"></i>
+              </div>
+              <input id="recurrenceCustomValue" type="number" min="1" style="width: 90px;" />
+            </div>
             <div id="recurrenceResetFieldLabel" class="full field-label"></div>
             <div id="recurrenceResetWrap" class="full select-wrap">
               <select id="recurrenceResetLeadTime"></select>
-              <i class="fa-light fa-arrow-down-from-bracket select-icon"></i>
-            </div>
-            <input id="quantity" type="number" min="0" class="full" />
-            <div class="full select-wrap">
-              <select id="prio">
-                <option value="low"></option>
-                <option value="normal" selected></option>
-                <option value="high"></option>
-              </select>
               <i class="fa-light fa-arrow-down-from-bracket select-icon"></i>
             </div>
           </div>
@@ -699,6 +706,7 @@
   </div>
 
   <script>
+    (() => {
     let state = { items: [] };
     let editingId = 0;
     let dragItem = null;
@@ -707,6 +715,23 @@
     let sortMode = 'created';
     let sortDir = 'desc';
     let lastOrderVersion = null;
+
+    const translate = (typeof window.translate === 'function')
+      ? window.translate
+      : (key) => String(key ?? '');
+
+    const requestAction = (typeof window.requestAction === 'function')
+      ? window.requestAction
+      : (ident, value) => {
+          try {
+            window.parent.postMessage(JSON.stringify({ type: 'requestAction', ident: String(ident), value }), '*');
+          } catch (e) {
+          }
+          try {
+            window.parent.postMessage({ type: 'requestAction', ident: String(ident), value }, '*');
+          } catch (e) {
+          }
+        };
 
     function persistSortPrefs() {
       requestAction('SetSortPrefs', JSON.stringify({ mode: sortMode, dir: sortDir }));
@@ -750,6 +775,9 @@
       document.getElementById('info').placeholder = translate('Info');
       document.getElementById('quantity').title = translate('Quantity');
       document.getElementById('quantity').placeholder = translate('Quantity');
+      document.getElementById('recurrenceCustomUnit').title = translate('Unit');
+      document.getElementById('recurrenceCustomValue').title = translate('Interval');
+      document.getElementById('recurrenceCustomValue').placeholder = translate('Interval');
       document.getElementById('due').title = translate('Due');
       document.getElementById('duePlaceholder').textContent = translate('Due placeholder');
       document.getElementById('notificationFieldLabel').textContent = translate('Notification');
@@ -760,7 +788,7 @@
       rec.innerHTML = '';
       const recOpts = [
         { v: 'none', t: 'No repeat' },
-        { v: 'h1', t: 'Hourly' },
+        { v: 'custom', t: 'Custom' },
         { v: 'w1', t: 'Every week' },
         { v: 'w2', t: 'Every 2 weeks' },
         { v: 'w3', t: 'Every 3 weeks' },
@@ -776,11 +804,33 @@
       }
       rec.value = 'none';
 
+      const cu = document.getElementById('recurrenceCustomUnit');
+      cu.innerHTML = '';
+      const cuOpts = [
+        { v: 'h', t: 'Hours' },
+        { v: 'd', t: 'Days' },
+        { v: 'w', t: 'Weeks' },
+        { v: 'm', t: 'Months' },
+        { v: 'y', t: 'Years' }
+      ];
+      for (const o of cuOpts) {
+        const el = document.createElement('option');
+        el.value = o.v;
+        el.textContent = translate(o.t);
+        cu.appendChild(el);
+      }
+      cu.value = 'w';
+      document.getElementById('recurrenceCustomValue').value = '1';
+
       const rrl = document.getElementById('recurrenceResetLeadTime');
       rrl.innerHTML = '';
       const reopenOpts = [
         { v: 0, t: 'Disabled' },
-        { v: 300, t: '5 minutes' },
+        { v: -1, t: 'Immediate' },
+        { v: 1800, t: '30 minutes' },
+        { v: 3600, t: '1 hour' },
+        { v: 21600, t: '6 hours' },
+        { v: 43200, t: '12 hours' },
         { v: 86400, t: '1 day before' },
         { v: 172800, t: '2 days before' },
         { v: 259200, t: '3 days before' },
@@ -969,6 +1019,8 @@
       const quantity = parseInt(it.quantity) || 0;
       const notification = !!it.notification;
       const recurrence = String(it.recurrence ?? 'none');
+      const recurrenceCustomUnit = String(it.recurrenceCustomUnit ?? 'w');
+      const recurrenceCustomValue = parseInt(it.recurrenceCustomValue) || 1;
       const prio = String(it.priority ?? 'normal');
       const prioKey = getPriorityKey(prio);
       const prioLabel = getPriorityLabel(prioKey);
@@ -978,7 +1030,7 @@
       if (quantity > 0) meta.push(`<span class="badge quantity">${quantity}×</span>`);
       if (showInfoBadges && due) meta.push(`<span class="badge due-badge ${dueClass}" title="${escapeHtml(due)}"><i class="fa-light fa-calendar due-icon"></i><span class="due-text">${escapeHtml(due)}</span></span>`);
       if (showInfoBadges && notification) meta.push(`<span class="badge notify-badge" title="${escapeHtml(translate('Notification'))}"><i class="fa-light fa-message"></i></span>`);
-      if (showInfoBadges && recurrence !== 'none') meta.push(`<span class="badge recur-badge" title="${escapeHtml(getRecurrenceTooltip(recurrence, dueTs))}"><i class="fa-light fa-arrows-rotate"></i></span>`);
+      if (showInfoBadges && recurrence !== 'none') meta.push(`<span class="badge recur-badge" title="${escapeHtml(getRecurrenceTooltip(recurrence, dueTs, recurrenceCustomUnit, recurrenceCustomValue))}"><i class="fa-light fa-arrows-rotate"></i></span>`);
       if (showInfoBadges) meta.push(`<span class="badge ${prioKey}">${escapeHtml(prioLabel)}</span>`);
       document.getElementById('detailMeta').innerHTML = meta.join('');
 
@@ -1018,7 +1070,60 @@
       if (sel.value === '' || sel.value === null || typeof sel.value === 'undefined') {
         sel.value = String(getDefaultNotificationLeadTime());
       }
+      updateNotificationLeadTimeValidity();
       updateNotificationLeadTimeInfo();
+    }
+
+    function updateNotificationLeadTimeValidity() {
+      const dueTs = parseDueInputToTimestamp();
+      const rec = document.getElementById('recurrence');
+      const r = String((rec ? rec.value : 'none') || 'none');
+      const chk = document.getElementById('notification');
+      const sel = document.getElementById('notificationLeadTime');
+      if (!sel) return;
+
+      const active = dueTs > 0 && chk && !chk.disabled && chk.checked;
+      if (!active) {
+        for (const opt of Array.from(sel.options)) {
+          opt.disabled = false;
+        }
+        return;
+      }
+
+      const nowTs = Math.floor(Date.now() / 1000);
+      const untilDue = Math.max(0, dueTs - nowTs);
+      let limit = untilDue;
+      if (r !== 'none') {
+        const interval = getRecurrenceIntervalSeconds();
+        if (Number.isFinite(interval) && interval > 0) {
+          limit = Math.min(limit, interval);
+        }
+      }
+
+      const allowedValues = [];
+      for (const opt of Array.from(sel.options)) {
+        const v = parseInt(opt.value);
+        if (!Number.isFinite(v)) {
+          opt.disabled = false;
+          continue;
+        }
+        if (v === 0) {
+          opt.disabled = false;
+          allowedValues.push(0);
+          continue;
+        }
+
+        const ok = v < limit;
+        opt.disabled = !ok;
+        if (ok) allowedValues.push(v);
+      }
+
+      const current = parseInt(sel.value);
+      const currentOk = Number.isFinite(current) && (current === 0 || current < limit);
+      if (!currentOk) {
+        const nonZeroAllowed = allowedValues.filter(x => x > 0).sort((a, b) => b - a);
+        sel.value = nonZeroAllowed.length > 0 ? String(nonZeroAllowed[0]) : '0';
+      }
     }
 
     function updateNotificationAvailability() {
@@ -1047,6 +1152,7 @@
       }
 
       updateRecurrenceResetAvailability();
+      updateRecurrenceCustomAvailability();
     }
 
     function updateRecurrenceResetAvailability() {
@@ -1060,6 +1166,157 @@
       if (rwrap) rwrap.style.display = enabled ? '' : 'none';
       if (!enabled && rsel) {
         rsel.value = '0';
+      }
+
+      updateReopenLeadTimeValidity();
+    }
+
+    function updateRecurrenceCustomAvailability() {
+      const dueStr = document.getElementById('due').value || '';
+      const rec = document.getElementById('recurrence');
+      const wrap = document.getElementById('recurrenceCustomWrap');
+      const enabled = dueStr !== '' && (rec ? (rec.value || 'none') : 'none') === 'custom';
+      if (wrap) wrap.style.display = enabled ? 'flex' : 'none';
+      if (!enabled) {
+        const cu = document.getElementById('recurrenceCustomUnit');
+        const cv = document.getElementById('recurrenceCustomValue');
+        if (cu) cu.value = 'w';
+        if (cv) cv.value = '1';
+      }
+
+      updateReopenLeadTimeValidity();
+    }
+
+    function parseDueInputToTimestamp() {
+      const dueStr = document.getElementById('due').value || '';
+      if (dueStr === '') return 0;
+      const d = new Date(dueStr);
+      if (isNaN(d.getTime())) return 0;
+      return Math.floor(d.getTime() / 1000);
+    }
+
+    function getDaysInMonth(year, monthIndex) {
+      return new Date(year, monthIndex + 1, 0).getDate();
+    }
+
+    function addMonthsClamped(dateObj, monthsToAdd) {
+      const d = new Date(dateObj.getTime());
+      const day = d.getDate();
+      const hour = d.getHours();
+      const minute = d.getMinutes();
+      const second = d.getSeconds();
+      const ms = d.getMilliseconds();
+
+      const y = d.getFullYear();
+      const m = d.getMonth();
+      const targetMonth = m + monthsToAdd;
+      const ty = y + Math.floor(targetMonth / 12);
+      const tm = ((targetMonth % 12) + 12) % 12;
+
+      const maxDay = getDaysInMonth(ty, tm);
+      const clampedDay = Math.min(day, maxDay);
+
+      return new Date(ty, tm, clampedDay, hour, minute, second, ms);
+    }
+
+    function getRecurrenceIntervalSeconds() {
+      const dueTs = parseDueInputToTimestamp();
+      if (dueTs <= 0) return 0;
+
+      const dueStr = document.getElementById('due').value || '';
+      const dueDate = new Date(dueStr);
+      if (isNaN(dueDate.getTime())) return 0;
+
+      const rec = document.getElementById('recurrence');
+      const r = String((rec ? rec.value : 'none') || 'none');
+      if (r === 'none') return 0;
+
+      if (r === 'w1') return 604800;
+      if (r === 'w2') return 1209600;
+      if (r === 'w3') return 1814400;
+
+      if (r === 'm1') {
+        const next = addMonthsClamped(dueDate, 1);
+        return Math.floor((next.getTime() - dueDate.getTime()) / 1000);
+      }
+      if (r === 'q1') {
+        const next = addMonthsClamped(dueDate, 3);
+        return Math.floor((next.getTime() - dueDate.getTime()) / 1000);
+      }
+      if (r === 'y1') {
+        const next = addMonthsClamped(dueDate, 12);
+        return Math.floor((next.getTime() - dueDate.getTime()) / 1000);
+      }
+
+      if (r === 'custom') {
+        const u = String(document.getElementById('recurrenceCustomUnit').value || 'w');
+        const v = Math.max(1, parseInt(document.getElementById('recurrenceCustomValue').value) || 1);
+        if (u === 'h') return 3600 * v;
+        if (u === 'd') return 86400 * v;
+        if (u === 'w') return 604800 * v;
+        if (u === 'm') {
+          const next = addMonthsClamped(dueDate, v);
+          return Math.floor((next.getTime() - dueDate.getTime()) / 1000);
+        }
+        if (u === 'y') {
+          const next = addMonthsClamped(dueDate, 12 * v);
+          return Math.floor((next.getTime() - dueDate.getTime()) / 1000);
+        }
+      }
+
+      return 0;
+    }
+
+    function updateReopenLeadTimeValidity() {
+      const dueTs = parseDueInputToTimestamp();
+      const rec = document.getElementById('recurrence');
+      const r = String((rec ? rec.value : 'none') || 'none');
+      const rsel = document.getElementById('recurrenceResetLeadTime');
+      if (!rsel) return;
+
+      const active = dueTs > 0 && r !== 'none';
+      if (!active) {
+        for (const opt of Array.from(rsel.options)) {
+          opt.disabled = false;
+        }
+        return;
+      }
+
+      const interval = getRecurrenceIntervalSeconds();
+      if (!Number.isFinite(interval) || interval <= 0) {
+        for (const opt of Array.from(rsel.options)) {
+          opt.disabled = false;
+        }
+        return;
+      }
+
+      const allowedValues = [];
+      for (const opt of Array.from(rsel.options)) {
+        const v = parseInt(opt.value);
+        if (!Number.isFinite(v)) {
+          opt.disabled = false;
+          continue;
+        }
+        if (v === 0) {
+          opt.disabled = false;
+          allowedValues.push(0);
+          continue;
+        }
+        if (v === -1) {
+          opt.disabled = false;
+          allowedValues.push(-1);
+          continue;
+        }
+        const ok = v < interval;
+        opt.disabled = !ok;
+        if (ok) allowedValues.push(v);
+      }
+
+      const current = parseInt(rsel.value);
+      const currentOk = Number.isFinite(current) && (current === -1 || current < interval);
+      if (!currentOk) {
+        const nonZeroAllowed = allowedValues.filter(x => x > 0).sort((a, b) => b - a);
+        rsel.value = nonZeroAllowed.length > 0 ? String(nonZeroAllowed[0]) : '0';
       }
     }
 
@@ -1082,13 +1339,15 @@
     function resetForm() {
       document.getElementById('title').value = '';
       document.getElementById('info').value = '';
+      document.getElementById('quantity').value = '';
       document.getElementById('notification').checked = false;
       document.getElementById('notificationLeadTime').value = String(getDefaultNotificationLeadTime());
       document.getElementById('due').value = '';
       document.getElementById('prio').value = 'normal';
-      document.getElementById('quantity').value = '';
       document.getElementById('recurrence').value = 'none';
       document.getElementById('recurrenceResetLeadTime').value = '604800';
+      document.getElementById('recurrenceCustomUnit').value = 'w';
+      document.getElementById('recurrenceCustomValue').value = '1';
       updateNotificationAvailability();
     }
 
@@ -1104,6 +1363,8 @@
     function openNew() {
       resetForm();
       editingId = 0;
+      updateReopenLeadTimeValidity();
+      updateNotificationLeadTimeValidity();
       openOverlay('new');
     }
 
@@ -1122,12 +1383,16 @@
       document.getElementById('prio').value = String(it.priority ?? 'normal');
       document.getElementById('due').value = timestampToLocalInput(it.due ?? 0);
       document.getElementById('recurrence').value = String(it.recurrence ?? 'none');
+      document.getElementById('recurrenceCustomUnit').value = String(it.recurrenceCustomUnit ?? 'w');
+      document.getElementById('recurrenceCustomValue').value = String(parseInt(it.recurrenceCustomValue) || 1);
       {
         const rrl = parseInt(it.recurrenceResetLeadTime);
         document.getElementById('recurrenceResetLeadTime').value = String(Number.isFinite(rrl) ? rrl : 604800);
       }
       document.getElementById('quantity').value = parseInt(it.quantity) || '';
       updateNotificationAvailability();
+      updateReopenLeadTimeValidity();
+      updateNotificationLeadTimeValidity();
       openOverlay('edit');
     }
 
@@ -1142,6 +1407,8 @@
       const rawQty = parseInt(it.quantity);
       const notification = !!it.notification;
       const recurrence = String(it.recurrence ?? 'none');
+      const recurrenceCustomUnit = String(it.recurrenceCustomUnit ?? 'w');
+      const recurrenceCustomValue = parseInt(it.recurrenceCustomValue) || 1;
       const prio = String(it.priority ?? 'normal');
       const prioKey = getPriorityKey(prio);
       const prioLabel = getPriorityLabel(prioKey);
@@ -1178,11 +1445,11 @@
         meta.push(`<span class="badge notify-badge${useGridView ? ' icon-only' : ''}" title="${escapeHtml(translate('Notification'))}"><i class="fa-light fa-bell"></i></span>`);
       }
       if (!shoppingMode && showInfoBadges && recurrence !== 'none') {
-        meta.push(`<span class="badge recur-badge${useGridView ? ' icon-only' : ''}" title="${escapeHtml(getRecurrenceTooltip(recurrence, dueTs))}"><i class="fa-light fa-arrows-rotate"></i></span>`);
+        meta.push(`<span class="badge recur-badge${useGridView ? ' icon-only' : ''}" title="${escapeHtml(getRecurrenceTooltip(recurrence, dueTs, recurrenceCustomUnit, recurrenceCustomValue))}"><i class="fa-light fa-arrows-rotate"></i></span>`);
       }
       if (!shoppingMode && showInfoBadges) {
         meta.push(useGridView
-          ? `<span class="badge ${prioKey} icon-only" title="${escapeHtml(prioLabel)}"><i class="fa-light fa-flag"></i></span>`
+          ? `<span class="badge ${prioKey} icon-only" title="${escapeHtml(prioLabel)}"><i class="fa-light fa-star"></i></span>`
           : `<span class="badge ${prioKey}">${escapeHtml(prioLabel)}</span>`);
       }
 
@@ -1469,10 +1736,23 @@
       }
     }
 
-    function getRecurrenceLabel(r) {
+    function getRecurrenceLabel(r, unit, val) {
+      if (String(r) === 'custom') {
+        const u = String(unit || 'w');
+        const v = parseInt(val) || 1;
+        const unitLabel = (() => {
+          switch (u) {
+            case 'h': return translate('Hours');
+            case 'd': return translate('Days');
+            case 'm': return translate('Months');
+            case 'y': return translate('Years');
+            default: return translate('Weeks');
+          }
+        })();
+        return `${translate('Custom')}: ${v} ${unitLabel}`;
+      }
+
       switch (String(r)) {
-        case 'h1':
-          return translate('Hourly');
         case 'w1':
           return translate('Every week');
         case 'w2':
@@ -1490,8 +1770,8 @@
       }
     }
 
-    function getRecurrenceTooltip(r, dueTs) {
-      const label = getRecurrenceLabel(r);
+    function getRecurrenceTooltip(r, dueTs, unit, val) {
+      const label = getRecurrenceLabel(r, unit, val);
       const t = parseInt(dueTs) || 0;
       if (t <= 0) {
         return label;
@@ -1502,9 +1782,7 @@
       }
 
       switch (String(r)) {
-        case 'h1': {
-          return label;
-        }
+        case 'custom':
         case 'w1':
         case 'w2':
         case 'w3': {
@@ -1587,10 +1865,22 @@
       document.getElementById('due').addEventListener('focus', updateDuePlaceholder);
       document.getElementById('due').addEventListener('blur', updateDuePlaceholder);
       document.getElementById('notification').addEventListener('change', updateNotificationLeadTimeUI);
-      document.getElementById('recurrence').addEventListener('change', updateRecurrenceResetAvailability);
+      document.getElementById('recurrence').addEventListener('change', () => {
+        updateRecurrenceResetAvailability();
+        updateRecurrenceCustomAvailability();
+        updateNotificationLeadTimeValidity();
+      });
+      document.getElementById('recurrenceCustomUnit').addEventListener('change', updateReopenLeadTimeValidity);
+      document.getElementById('recurrenceCustomValue').addEventListener('input', updateReopenLeadTimeValidity);
+      document.getElementById('recurrenceCustomValue').addEventListener('change', updateReopenLeadTimeValidity);
+      document.getElementById('recurrenceCustomUnit').addEventListener('change', updateNotificationLeadTimeValidity);
+      document.getElementById('recurrenceCustomValue').addEventListener('input', updateNotificationLeadTimeValidity);
+      document.getElementById('recurrenceCustomValue').addEventListener('change', updateNotificationLeadTimeValidity);
       document.getElementById('notificationLeadTime').addEventListener('click', (e) => e.stopPropagation());
       document.getElementById('notificationLeadTime').addEventListener('change', updateNotificationLeadTimeInfo);
       updateNotificationAvailability();
+
+      render();
 
       document.getElementById('newBtn').addEventListener('click', () => {
         openNew();
@@ -1623,6 +1913,8 @@
         const prio = document.getElementById('prio').value || 'normal';
         const quantity = parseInt(document.getElementById('quantity').value) || 0;
         const recurrence = (dueStr !== '') ? (document.getElementById('recurrence').value || 'none') : 'none';
+        const recurrenceCustomUnit = (recurrence === 'custom') ? (document.getElementById('recurrenceCustomUnit').value || 'w') : 'w';
+        const recurrenceCustomValue = (recurrence === 'custom') ? (parseInt(document.getElementById('recurrenceCustomValue').value) || 1) : 1;
         const recurrenceResetLeadTime = (dueStr !== '' && recurrence !== 'none')
           ? (() => {
               const v = parseInt(document.getElementById('recurrenceResetLeadTime').value);
@@ -1643,15 +1935,17 @@
         resetForm();
 
         if (editingId > 0) {
-          requestAction('UpdateItem', JSON.stringify({ id: editingId, title, info, due, recurrence, recurrenceResetLeadTime, priority: prio, quantity, notification, notificationLeadTime }));
+          requestAction('UpdateItem', JSON.stringify({ id: editingId, title, info, due, recurrence, recurrenceCustomUnit, recurrenceCustomValue, recurrenceResetLeadTime, priority: prio, quantity, notification, notificationLeadTime }));
         } else {
-          requestAction('AddItem', JSON.stringify({ title, info, due, recurrence, recurrenceResetLeadTime, priority: prio, quantity, notification, notificationLeadTime }));
+          requestAction('AddItem', JSON.stringify({ title, info, due, recurrence, recurrenceCustomUnit, recurrenceCustomValue, recurrenceResetLeadTime, priority: prio, quantity, notification, notificationLeadTime }));
         }
         closeOverlay();
       });
 
       requestState();
     });
+
+    })();
   </script>
 </body>
 </html>
