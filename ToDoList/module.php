@@ -4,6 +4,277 @@ declare(strict_types=1);
 
 class ToDoList extends IPSModuleStrict
 {
+    private function GetDefaultHtmlBoxCssBody(): string
+    {
+        return trim(<<<CSS
+.tdl-htmlbox {
+  --bg: #333438;
+  --card: #333438;
+  --text: #ffffff;
+  --accent: #00cdab;
+  --radius: 14px;
+  --gap: 12px;
+  --muted: rgba(255, 255, 255, .55);
+  --border: rgba(255, 255, 255, .12);
+}
+
+.wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  padding: 0;
+  box-sizing: border-box;
+  color: var(--text);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+.stats {
+  display: flex;
+  gap: var(--gap);
+}
+
+.stat-box {
+  flex: 1;
+  padding: 12px 8px;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--border);
+  text-align: center;
+}
+
+.stat-box .label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 4px;
+  color: var(--muted);
+}
+
+.stat-box .value {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.list.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-auto-rows: min-content;
+  align-content: start;
+  gap: 8px;
+}
+
+.list.grid.shopping {
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 6px;
+}
+
+.list.grid .section-header {
+  grid-column: 1 / -1;
+}
+
+.item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap);
+  padding: var(--gap);
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+
+.item.done {
+  opacity: .55;
+}
+
+.item .main {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--gap);
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.item .content {
+  flex: 1;
+  min-width: 0;
+}
+
+.item .actions {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--gap) / 2);
+  margin-left: auto;
+}
+
+.title {
+  font-weight: 700;
+  font-size: 1em;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+.done .title {
+  text-decoration: line-through;
+}
+
+.info {
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.35;
+  margin-top: calc(var(--gap) / 2);
+  opacity: .9;
+  word-break: break-word;
+}
+
+.meta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.badge {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.badge.quantity {
+  border-color: var(--accent);
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.badge.quantity.large-qty {
+  font-size: 25px;
+  line-height: 1;
+  padding: 8px 14px;
+  font-weight: 800;
+}
+
+.quantity-large-wrap {
+  display: flex;
+  justify-content: flex-start;
+  width: 100%;
+  margin-top: calc(var(--gap) / 2);
+}
+
+.badge.due-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.badge.due-badge.due-overdue {
+  border-color: rgb(255, 0, 0);
+  color: var(--text);
+  background-color: rgba(255, 0, 0, .2);
+}
+
+.badge.due-badge.due-today {
+  border-color: #ffa500;
+  color: var(--text);
+  background-color: rgba(255, 165, 0, .2);
+}
+
+.badge.notify-badge {
+  border-color: var(--accent);
+  color: var(--text);
+  background-color: rgba(0, 205, 171, .2);
+}
+
+.badge.recur-badge {
+  border-color: var(--accent);
+  color: var(--text);
+  background-color: rgba(0, 205, 171, .2);
+}
+
+.badge .icon-svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+  fill: currentColor;
+}
+
+.badge.high {
+  border-color: rgb(255, 0, 0);
+  color: var(--text);
+  background-color: rgba(255, 0, 0, .2);
+}
+
+.badge.low {
+  border-color: rgba(200, 200, 200, .25);
+  color: var(--text);
+  background-color: rgba(200, 200, 200, .2);
+}
+
+.badge.normal {
+  border-color: var(--accent);
+  color: var(--text);
+  background-color: rgba(0, 205, 171, .2);
+}
+
+.section-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 8px 4px 4px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+
+.list.grid .item {
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  text-align: center;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.list.grid.shopping .item {
+  padding: calc(var(--gap) / 2);
+}
+
+.list.grid .item .main {
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.list.grid .item .actions {
+  width: 100%;
+  margin-left: 0;
+  justify-content: center;
+}
+
+.list.grid .title {
+  font-size: 1.5em;
+}
+
+.list.grid.shopping .title {
+  font-size: 1.05em;
+}
+
+.list.grid .quantity-large-wrap {
+  justify-content: center;
+  margin-top: var(--gap);
+}
+CSS);
+    }
+
     public function Create(): void
     {
         parent::Create();
@@ -22,6 +293,7 @@ class ToDoList extends IPSModuleStrict
         $this->RegisterPropertyBoolean('ShowEditButton', true);
         $this->RegisterPropertyBoolean('HideCompletedTasks', false);
         $this->RegisterPropertyBoolean('DeleteCompletedTasks', false);
+        $this->RegisterPropertyString('HtmlBoxCss', '');
         $this->RegisterAttributeString('Items', '[]');
         $this->RegisterAttributeInteger('NextID', 1);
         $this->RegisterAttributeInteger('LastConfigFormRequest', 0);
@@ -37,6 +309,7 @@ class ToDoList extends IPSModuleStrict
         $this->RegisterVariableInteger('OpenTasks', $this->Translate('Open Tasks'), '', 1);
         $this->RegisterVariableInteger('OverdueTasks', $this->Translate('Overdue'), '', 2);
         $this->RegisterVariableInteger('DueTodayTasks', $this->Translate('Due Today'), '', 3);
+        $this->RegisterVariableString('TaskListHtml', $this->Translate('Task list (HTML)'), '~HTMLBox', 4);
     }
 
     public function ApplyChanges(): void
@@ -63,6 +336,7 @@ class ToDoList extends IPSModuleStrict
             $this->WriteAttributeString('LastItemsTableHash', $hash);
         }
         $this->UpdateStatistics();
+        $this->UpdateTaskListHtml();
         $this->SendState();
 
         $this->ProcessNotifications();
@@ -75,7 +349,14 @@ class ToDoList extends IPSModuleStrict
         $items = $this->LoadItems();
         $values = $this->BuildItemsTableValues($items);
 
+        $prefill = [];
+        $css = trim((string)$this->ReadPropertyString('HtmlBoxCss'));
+        if ($css === '') {
+            $prefill['HtmlBoxCss'] = $this->GetDefaultHtmlBoxCssBody();
+        }
+
         $form = [
+            'values' => $prefill,
             'elements' => [
                 [
                     'type' => 'SelectInstance',
@@ -158,8 +439,8 @@ class ToDoList extends IPSModuleStrict
                     'caption' => $this->Translate('Delete completed tasks')
                 ],
                 [
-                    'type'  => 'List',
-                    'name'  => 'ItemsTable',
+                    'type' => 'List',
+                    'name' => 'ItemsTable',
                     'caption' => $this->Translate('Items'),
                     'rowCount' => 10,
                     'changeOrder' => true,
@@ -341,6 +622,19 @@ class ToDoList extends IPSModuleStrict
                     'values' => $values,
                     'loadValuesFromConfiguration' => false
                 ],
+                
+                [
+                    'type' => 'ExpansionPanel',
+                    'caption' => $this->Translate('HTMLBox layout'),
+                    'items' => [
+                        [
+                            'type' => 'ScriptEditor',
+                            'name' => 'HtmlBoxCss',
+                            'caption' => $this->Translate('HTMLBox CSS'),
+                            'rowCount' => 15
+                        ]
+                    ]
+                ]
             ]
         ];
 
@@ -355,6 +649,7 @@ class ToDoList extends IPSModuleStrict
                 return;
             case 'SetSortPrefs':
                 $this->SetSortPrefs($this->DecodeValue($Value));
+                $this->UpdateTaskListHtml();
                 $this->SendState();
                 return;
             case 'AddItem':
@@ -402,6 +697,11 @@ class ToDoList extends IPSModuleStrict
             IPS_LogMessage('ToDoList', 'GetVisualizationTile: module.html loaded but is very short. bytes=' . strlen($html) . ' head=' . substr($html, 0, 80));
         }
         return $html;
+    }
+
+    public function Export(): string
+    {
+        return json_encode($this->LoadItems(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 
     public function DebugRecurrence(): string
@@ -1006,7 +1306,320 @@ class ToDoList extends IPSModuleStrict
     {
         $this->WriteAttributeString('Items', json_encode($Items));
         $this->UpdateStatistics();
+        $this->UpdateTaskListHtml($Items);
         $this->UpdateRecurrenceTimer($Items);
+    }
+
+    private function UpdateTaskListHtml(?array $Items = null): void
+    {
+        if ($Items === null) {
+            $Items = $this->LoadItems();
+        }
+        $this->SetValue('TaskListHtml', $this->BuildTaskListHtml($Items));
+    }
+
+    private function BuildTaskListHtml(array $Items): string
+    {
+        $hideCompleted = $this->ReadPropertyBoolean('HideCompletedTasks');
+        $showOverview = $this->ReadPropertyBoolean('ShowOverview');
+        $showInfoBadges = $this->ReadPropertyBoolean('ShowInfoBadges');
+        $showLargeQty = $this->ReadPropertyBoolean('ShowLargeQuantity');
+        $useGridView = $this->ReadPropertyBoolean('UseGridView');
+        $shoppingMode = $useGridView && $this->ReadPropertyBoolean('GridShoppingListMode');
+
+        $openItems = [];
+        $doneItems = [];
+        foreach ($Items as $it) {
+            if (!is_array($it)) {
+                continue;
+            }
+            if (!empty($it['done'])) {
+                if (!$hideCompleted) {
+                    $doneItems[] = $it;
+                }
+            } else {
+                $openItems[] = $it;
+            }
+        }
+
+        $openItems = $this->SortItemsForHtmlBox($openItems);
+        if (!$hideCompleted) {
+            $doneItems = $this->SortItemsForHtmlBox($doneItems);
+        }
+
+        $open = 0;
+        $overdue = 0;
+        $today = 0;
+        $todayStart = strtotime('today');
+        $todayEnd = $todayStart + 86400;
+        foreach ($openItems as $it) {
+            $open++;
+            $due = (int)($it['due'] ?? 0);
+            if ($due > 0) {
+                if ($due < $todayStart) {
+                    $overdue++;
+                } elseif ($due >= $todayStart && $due < $todayEnd) {
+                    $today++;
+                }
+            }
+        }
+
+        if (count($openItems) === 0 && count($doneItems) === 0) {
+            $t = htmlspecialchars($this->Translate('No items'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            return '<div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; font-size: 14px; color: #fff;">' . $t . '</div>';
+        }
+
+        $cssBody = trim((string)$this->ReadPropertyString('HtmlBoxCss'));
+        if ($cssBody === '') {
+            $cssBody = $this->GetDefaultHtmlBoxCssBody();
+        }
+        $cssBlock = '<style>' . $cssBody . '</style>';
+
+        $statsHtml = '';
+        if ($showOverview) {
+            $statsHtml = '<div class="stats">' .
+                '<div class="stat-box stat-open"><div class="label">' . htmlspecialchars($this->Translate('Open Tasks'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</div><div class="value">' . $open . '</div></div>' .
+                '<div class="stat-box stat-overdue"><div class="label">' . htmlspecialchars($this->Translate('Overdue'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</div><div class="value">' . $overdue . '</div></div>' .
+                '<div class="stat-box stat-today"><div class="label">' . htmlspecialchars($this->Translate('Due Today'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</div><div class="value">' . $today . '</div></div>' .
+                '</div>';
+        }
+
+        $listClass = 'list' . ($useGridView ? ' grid' : '') . ($shoppingMode ? ' shopping' : '');
+
+        $html = $cssBlock . '<div class="tdl-htmlbox wrap">';
+
+        $html .= $statsHtml;
+        $html .= '<div class="' . htmlspecialchars($listClass, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">';
+
+        foreach ($openItems as $it) {
+            $html .= $this->BuildTaskRowHtml($it, false, $showInfoBadges, $showLargeQty, $useGridView, $shoppingMode, $todayStart, $todayEnd);
+        }
+
+        if (count($doneItems) > 0) {
+            $html .= '<div class="section-header">' . htmlspecialchars($this->Translate('Completed'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</div>';
+            foreach ($doneItems as $it) {
+                $html .= $this->BuildTaskRowHtml($it, true, $showInfoBadges, $showLargeQty, $useGridView, $shoppingMode, $todayStart, $todayEnd);
+            }
+        }
+
+        $html .= '</div></div>';
+        return $html;
+    }
+
+    private function BuildTaskRowHtml(array $Item, bool $Done, bool $ShowInfoBadges, bool $ShowLargeQty, bool $UseGridView, bool $ShoppingMode, int $TodayStart, int $TodayEnd): string
+    {
+        $title = htmlspecialchars((string)($Item['title'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $info = trim((string)($Item['info'] ?? ''));
+        $infoHtml = '';
+        if ($info !== '') {
+            $infoHtml = '<div class="info">' . htmlspecialchars($info, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</div>';
+        }
+
+        $prio = (string)($Item['priority'] ?? 'normal');
+        if ($prio !== 'low' && $prio !== 'normal' && $prio !== 'high') {
+            $prio = 'normal';
+        }
+
+        $qty = (int)($Item['quantity'] ?? 0);
+        $dueTs = (int)($Item['due'] ?? 0);
+        $notification = (bool)($Item['notification'] ?? false);
+        $recurrence = (string)($Item['recurrence'] ?? 'none');
+        $recurrenceUnit = (string)($Item['recurrenceCustomUnit'] ?? 'w');
+        $recurrenceValue = (int)($Item['recurrenceCustomValue'] ?? 1);
+
+        $qtyLargeHtml = '';
+        $qtyShoppingHtml = '';
+        if ($qty > 0) {
+            if ($ShowLargeQty) {
+                $qtyLargeHtml = '<div class="quantity-large-wrap"><span class="badge quantity large-qty">' . $qty . '×</span></div>';
+            } else {
+                $qtyShoppingHtml = '<div class="quantity-large-wrap"><span class="badge quantity">' . $qty . '×</span></div>';
+            }
+        }
+
+        $meta = [];
+        if ($qty > 0 && (!$ShowLargeQty || $ShoppingMode)) {
+            $meta[] = '<span class="badge quantity">' . $qty . '×</span>';
+        }
+
+        if ($ShowInfoBadges && $dueTs > 0) {
+            $dueClass = '';
+            if ($dueTs < $TodayStart) {
+                $dueClass = ' due-overdue';
+            } elseif ($dueTs >= $TodayStart && $dueTs < $TodayEnd) {
+                $dueClass = ' due-today';
+            }
+            $dueText = htmlspecialchars(date('d.m.Y H:i', $dueTs), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $meta[] = '<span class="badge due-badge' . $dueClass . '" title="' . $dueText . '">' . $dueText . '</span>';
+        }
+        if ($ShowInfoBadges && $notification) {
+            $bellSvg = '<svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path d="M320 64C306.7 64 296 74.7 296 88L296 97.7C214.6 109.3 152 179.4 152 264L152 278.5C152 316.2 142 353.2 123 385.8L101.1 423.2C97.8 429 96 435.5 96 442.2C96 463.1 112.9 480 133.8 480L506.2 480C527.1 480 544 463.1 544 442.2C544 435.5 542.2 428.9 538.9 423.2L517 385.7C498 353.1 488 316.1 488 278.4L488 263.9C488 179.3 425.4 109.2 344 97.6L344 87.9C344 74.6 333.3 63.9 320 63.9zM488.4 432L151.5 432L164.4 409.9C187.7 370 200 324.6 200 278.5L200 264C200 197.7 253.7 144 320 144C386.3 144 440 197.7 440 264L440 278.5C440 324.7 452.3 370 475.5 409.9L488.4 432zM252.1 528C262 556 288.7 576 320 576C351.3 576 378 556 387.9 528L252.1 528z"/></svg>';
+            $meta[] = '<span class="badge notify-badge" title="' . htmlspecialchars($this->Translate('Notification'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">' . $bellSvg . '</span>';
+        }
+        if ($ShowInfoBadges && $recurrence !== 'none') {
+            $rLabel = $this->GetRecurrenceLabel($recurrence, $recurrenceUnit, $recurrenceValue);
+            $repeatSvg = '<svg class="icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path d="M544.1 256L552 256C565.3 256 576 245.3 576 232L576 88C576 78.3 570.2 69.5 561.2 65.8C552.2 62.1 541.9 64.2 535 71L483.3 122.8C439 86.1 382 64 320 64C191 64 84.3 159.4 66.6 283.5C64.1 301 76.2 317.2 93.7 319.7C111.2 322.2 127.4 310 129.9 292.6C143.2 199.5 223.3 128 320 128C364.4 128 405.2 143 437.7 168.3L391 215C384.1 221.9 382.1 232.2 385.8 241.2C389.5 250.2 398.3 256 408 256L544.1 256zM573.5 356.5C576 339 563.8 322.8 546.4 320.3C529 317.8 512.7 330 510.2 347.4C496.9 440.4 416.8 511.9 320.1 511.9C275.7 511.9 234.9 496.9 202.4 471.6L249 425C255.9 418.1 257.9 407.8 254.2 398.8C250.5 389.8 241.7 384 232 384L88 384C74.7 384 64 394.7 64 408L64 552C64 561.7 69.8 570.5 78.8 574.2C87.8 577.9 98.1 575.8 105 569L156.8 517.2C201 553.9 258 576 320 576C449 576 555.7 480.6 573.4 356.5z"/></svg>';
+            $meta[] = '<span class="badge recur-badge" title="' . htmlspecialchars($rLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">' . $repeatSvg . '</span>';
+        }
+        if ($ShowInfoBadges && !$ShoppingMode) {
+            $meta[] = '<span class="badge ' . htmlspecialchars($prio, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">' . htmlspecialchars($this->GetPriorityLabel($prio), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</span>';
+        }
+
+        $metaHtml = '<div class="meta">' . implode('', $meta) . '</div>';
+
+        $rowClass = 'item' . ($Done ? ' done' : '');
+        return '<div class="' . $rowClass . '">' .
+            '<div class="main">' .
+                '<div class="content">' .
+                    '<div class="title">' . $title . '</div>' .
+                    $infoHtml .
+                    ($ShoppingMode ? $qtyShoppingHtml : $qtyLargeHtml) .
+                '</div>' .
+            '</div>' .
+            '<div class="actions">' .
+                $metaHtml .
+            '</div>' .
+        '</div>';
+    }
+
+    private function SortItemsForHtmlBox(array $Items): array
+    {
+        $sort = $this->GetSortPrefs();
+        $mode = (string)($sort['mode'] ?? 'created');
+        $dir = (string)($sort['dir'] ?? 'desc');
+
+        if ($mode === 'manual') {
+            return $Items;
+        }
+
+        $list = array_values($Items);
+
+        $compareDue = function (array $a, array $b) use ($dir): int {
+            $da = (int)($a['due'] ?? 0);
+            $db = (int)($b['due'] ?? 0);
+            if ($da <= 0 && $db <= 0) {
+                return 0;
+            }
+            if ($da <= 0) {
+                return 1;
+            }
+            if ($db <= 0) {
+                return -1;
+            }
+            return ($dir === 'asc') ? ($da <=> $db) : ($db <=> $da);
+        };
+
+        $prioRankLowFirst = function (string $p): int {
+            return match ($p) {
+                'low' => 0,
+                'high' => 2,
+                default => 1
+            };
+        };
+
+        $getIdKey = fn(array $it): int => (int)($it['id'] ?? 0);
+        $getCreatedKey = fn(array $it): int => (int)($it['createdAt'] ?? 0);
+        $getTitleKey = fn(array $it): string => mb_strtolower(trim((string)($it['title'] ?? '')));
+
+        usort($list, function (array $a, array $b) use ($mode, $dir, $compareDue, $prioRankLowFirst, $getIdKey, $getCreatedKey, $getTitleKey): int {
+            if ($mode === 'due') {
+                $c = $compareDue($a, $b);
+                if ($c !== 0) {
+                    return $c;
+                }
+                return $getIdKey($a) <=> $getIdKey($b);
+            }
+
+            if ($mode === 'priority') {
+                $pa = $prioRankLowFirst((string)($a['priority'] ?? 'normal'));
+                $pb = $prioRankLowFirst((string)($b['priority'] ?? 'normal'));
+                if ($pa !== $pb) {
+                    return ($dir === 'asc') ? ($pa <=> $pb) : ($pb <=> $pa);
+                }
+                $c = $compareDue($a, $b);
+                if ($c !== 0) {
+                    return $c;
+                }
+                return $getIdKey($a) <=> $getIdKey($b);
+            }
+
+            if ($mode === 'title') {
+                $ta = $getTitleKey($a);
+                $tb = $getTitleKey($b);
+                $c = strcasecmp($ta, $tb);
+                if ($c !== 0) {
+                    return $c;
+                }
+                return $getIdKey($a) <=> $getIdKey($b);
+            }
+
+            $ca = $getCreatedKey($a);
+            $cb = $getCreatedKey($b);
+            if ($ca !== $cb) {
+                return ($dir === 'asc') ? ($ca <=> $cb) : ($cb <=> $ca);
+            }
+            return $getIdKey($a) <=> $getIdKey($b);
+        });
+
+        if ($mode === 'title' && $dir === 'desc') {
+            $list = array_reverse($list);
+        }
+
+        return $list;
+    }
+
+    private function GetPriorityLabel(string $Prio): string
+    {
+        switch ($Prio) {
+            case 'low':
+                return $this->Translate('Low');
+            case 'high':
+                return $this->Translate('High');
+            default:
+                return $this->Translate('Normal');
+        }
+    }
+
+    private function GetRecurrenceLabel(string $Recurrence, string $Unit, int $Value): string
+    {
+        $r = strtolower(trim($Recurrence));
+        switch ($r) {
+            case 'w1':
+                return $this->Translate('Every week');
+            case 'w2':
+                return $this->Translate('Every 2 weeks');
+            case 'w3':
+                return $this->Translate('Every 3 weeks');
+            case 'm1':
+                return $this->Translate('Monthly');
+            case 'q1':
+                return $this->Translate('Quarterly');
+            case 'y1':
+                return $this->Translate('Yearly');
+            case 'custom':
+                $u = $this->Translate('Weeks');
+                switch ($this->NormalizeRecurrenceCustomUnit($Unit)) {
+                    case 'h':
+                        $u = $this->Translate('Hours');
+                        break;
+                    case 'd':
+                        $u = $this->Translate('Days');
+                        break;
+                    case 'w':
+                        $u = $this->Translate('Weeks');
+                        break;
+                    case 'm':
+                        $u = $this->Translate('Months');
+                        break;
+                    case 'y':
+                        $u = $this->Translate('Years');
+                        break;
+                }
+                $v = max(1, (int)$Value);
+                return $this->Translate('Custom') . ': ' . $v . ' ' . $u;
+            default:
+                return $this->Translate('No repeat');
+        }
     }
 
     private function SetSortPrefs(array $Data): void

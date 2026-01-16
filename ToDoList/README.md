@@ -26,6 +26,9 @@ Dieses Modul stellt eine ToDo-Liste für die Tile-Visualisierung bereit.
   - Wiederkehrende Tasks werden automatisch vor Fälligkeit wieder auf offen gesetzt (pro Task konfigurierbar)
   - Wieder öffnen: zusätzlich "Sofort" (direkt nach dem Erledigen wieder öffnen)
   - Optional: Benachrichtigung vor Fälligkeit
+- **IPSView / HTMLBox**
+  - Read-only HTML-Ausgabe der Taskliste über die Statusvariable **TaskListHtml** (für `~HTMLBox`)
+  - Sortierung folgt den Sortier-Einstellungen aus dem Frontend
 - **Sortierung**
   - Datum, Fälligkeit, Priorität, Titel
   - Manuell (automatisch aktiv, wenn per Drag&Drop umsortiert wurde)
@@ -67,6 +70,8 @@ Dieses Modul stellt eine ToDo-Liste für die Tile-Visualisierung bereit.
   - Blendet erledigte Tasks im Frontend aus.
 - **Erledigte Tasks löschen** (`DeleteCompletedTasks`)
   - Löscht einen Task automatisch, sobald er als erledigt markiert wird.
+- **HTMLBox CSS** (`HtmlBoxCss`)
+  - Vollständiges CSS für die HTMLBox-Ausgabe (`TaskListHtml`).
 - **Items** (Listenelement im Konfigurationsformular)
   - Ermöglicht Bearbeitung der Tasks im Backend.
   - **Wiederholen** wird im Bearbeiten-Dialog immer angezeigt. **Wieder öffnen** wird nur angezeigt, wenn **Wiederholen** nicht **Keine** ist.
@@ -91,6 +96,15 @@ Folgende Statusvariablen werden von der Instanz angelegt:
   - Anzahl überfälliger Tasks
 - **DueTodayTasks**
   - Anzahl heute fälliger Tasks
+
+- **TaskListHtml** (`~HTMLBox`)
+  - Read-only HTML-Ausgabe der Taskliste für IPSView (HTMLBox).
+  - Wird bei Änderungen der Tasks sowie bei Änderungen der Sortier-Einstellungen aktualisiert.
+
+Optional kann das CSS der HTMLBox über die Instanz-Eigenschaften angepasst werden.
+
+- **HTMLBox CSS**
+  - Vollständiges CSS für die HTMLBox.
 
 ## 7. PHP-Befehlsreferenz
 
