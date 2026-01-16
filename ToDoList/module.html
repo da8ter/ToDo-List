@@ -500,6 +500,7 @@
       align-items: center;
       justify-content: center;
       user-select: none;
+      touch-action: none;
     }
     .item .drag-handle:active { cursor: grabbing; }
     .item .drag-handle i {
@@ -712,10 +713,17 @@
     let editingId = 0;
     let dragItem = null;
     let dragGroup = '';
+    let dragItemPrevPointerEvents = null;
     let dndBound = false;
     let sortMode = 'created';
     let sortDir = 'desc';
     let lastOrderVersion = null;
+    let pointerDragActive = false;
+    let pointerDragPointerId = null;
+    let pointerDragStartY = 0;
+    let pointerDragMoved = false;
+    let pointerDragContainer = null;
+    let suppressClickUntil = 0;
 
     const translate = (typeof window.translate === 'function')
       ? window.translate
@@ -1459,7 +1467,7 @@
 
       const actionButtons = `${showDeleteButton ? `<button class="del icon-btn" title="${translate('Delete')}" aria-label="${translate('Delete')}"><i class="fa-light fa-trash-can"></i></button>` : ''}
             ${showEditButton ? `<button class="edit icon-btn" title="${translate('Edit')}" aria-label="${translate('Edit')}"><i class="fa-light fa-pencil"></i></button>` : ''}
-            <div class="drag-handle" draggable="true"><i class="fa-light fa-grip-dots-vertical"></i></div>`;
+            <div class="drag-handle"><i class="fa-light fa-grip-dots-vertical"></i></div>`;
 
       const actionsHtml = useGridView
         ? `<div class="meta">${meta.join('')}</div><div class="grid-actions">${actionButtons}</div>`
@@ -1484,18 +1492,100 @@
 
     function bindDnd(container) {
       if (!dndBound) {
-        container.addEventListener('dragover', (e) => {
-          if (!dragItem) return;
-          e.preventDefault();
+        pointerDragContainer = container;
 
-          const target = e.target.closest('.item');
+        const onMouseMove = (e) => {
+          if (!pointerDragActive) return;
+          e.preventDefault();
+          moveToPoint(e.clientX, e.clientY);
+        };
+
+        const onMouseUp = (e) => {
+          if (!pointerDragActive) return;
+          e.preventDefault();
+          finishPointerDrag(true);
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+        };
+
+        const finishPointerDrag = (commit) => {
+          const c = pointerDragContainer;
+
+          if (c) {
+            c.querySelectorAll('.item.drag-over').forEach(x => x.classList.remove('drag-over'));
+          }
+          if (dragItem) {
+            dragItem.classList.remove('dragging');
+            dragItem.style.pointerEvents = (dragItemPrevPointerEvents === null) ? '' : dragItemPrevPointerEvents;
+          }
+          dragItemPrevPointerEvents = null;
+
+          if (commit && c && pointerDragMoved) {
+            const activeIds = Array.from(c.querySelectorAll('.item[data-group="active"]'))
+              .map(el => parseInt(el.getAttribute('data-id')))
+              .filter(n => Number.isFinite(n));
+            let completedIds = Array.from(c.querySelectorAll('.item[data-group="completed"]'))
+              .map(el => parseInt(el.getAttribute('data-id')))
+              .filter(n => Number.isFinite(n));
+
+            const hideCompleted = state.hideCompletedTasks === true;
+            if (hideCompleted) {
+              completedIds = (Array.isArray(state.items) ? state.items : [])
+                .filter(it => !!it.done)
+                .map(it => parseInt(it.id))
+                .filter(n => Number.isFinite(n));
+            }
+
+            setManualSort();
+            requestAction('Reorder', JSON.stringify({ order: activeIds.concat(completedIds) }));
+            suppressClickUntil = Date.now() + 250;
+          }
+
+          dragItem = null;
+          dragGroup = '';
+          pointerDragActive = false;
+          pointerDragPointerId = null;
+          pointerDragMoved = false;
+          pointerDragContainer = null;
+        };
+
+        const moveToPoint = (clientX, clientY) => {
+          if (!pointerDragActive) return;
+          if (!pointerDragContainer || !dragItem) return;
+
+          if (Math.abs(clientY - pointerDragStartY) > 3) {
+            pointerDragMoved = true;
+          }
+
+          const el = document.elementFromPoint(clientX, clientY);
+          let target = el ? el.closest('.item') : null;
+
+          if (!target || target === dragItem) {
+            const candidates = Array.from(pointerDragContainer.querySelectorAll(`.item[data-group="${dragGroup}"]`))
+              .filter(x => x !== dragItem);
+            if (candidates.length === 0) return;
+
+            let best = null;
+            let bestDist = null;
+            for (const c of candidates) {
+              const r = c.getBoundingClientRect();
+              const mid = r.top + (r.height / 2);
+              const dist = Math.abs(clientY - mid);
+              if (bestDist === null || dist < bestDist) {
+                bestDist = dist;
+                best = c;
+              }
+            }
+            target = best;
+          }
+
           if (!target || target === dragItem) return;
           if ((target.getAttribute('data-group') || '') !== dragGroup) return;
 
           const rect = target.getBoundingClientRect();
-          const after = (e.clientY - rect.top) > (rect.height / 2);
+          const after = (clientY - rect.top) > (rect.height / 2);
 
-          container.querySelectorAll('.item.drag-over').forEach(x => x.classList.remove('drag-over'));
+          pointerDragContainer.querySelectorAll('.item.drag-over').forEach(x => x.classList.remove('drag-over'));
           target.classList.add('drag-over');
 
           if (after) {
@@ -1503,69 +1593,131 @@
           } else {
             target.before(dragItem);
           }
-        });
+        };
 
-        container.addEventListener('drop', (e) => {
-          if (!dragItem) return;
+        const onPointerMove = (e) => {
+          if (!pointerDragActive) return;
+          if (pointerDragPointerId !== null && e.pointerId !== pointerDragPointerId) return;
+          if (!pointerDragContainer || !dragItem) return;
           e.preventDefault();
+          moveToPoint(e.clientX, e.clientY);
+        };
 
-          container.querySelectorAll('.item.drag-over').forEach(x => x.classList.remove('drag-over'));
+        const onPointerUp = (e) => {
+          if (!pointerDragActive) return;
+          if (pointerDragPointerId !== null && e.pointerId !== pointerDragPointerId) return;
+          e.preventDefault();
+          finishPointerDrag(true);
+          document.removeEventListener('pointermove', onPointerMove);
+          document.removeEventListener('pointerup', onPointerUp);
+          document.removeEventListener('pointercancel', onPointerUp);
+        };
 
-          const activeIds = Array.from(container.querySelectorAll('.item[data-group="active"]'))
-            .map(el => parseInt(el.getAttribute('data-id')))
-            .filter(n => Number.isFinite(n));
-          let completedIds = Array.from(container.querySelectorAll('.item[data-group="completed"]'))
-            .map(el => parseInt(el.getAttribute('data-id')))
-            .filter(n => Number.isFinite(n));
+        const onTouchMove = (e) => {
+          if (!pointerDragActive) return;
+          const t = (e.touches && e.touches.length > 0) ? e.touches[0] : null;
+          if (!t) return;
+          e.preventDefault();
+          moveToPoint(t.clientX, t.clientY);
+        };
 
-          const hideCompleted = state.hideCompletedTasks === true;
-          if (hideCompleted) {
-            completedIds = (Array.isArray(state.items) ? state.items : [])
-              .filter(it => !!it.done)
-              .map(it => parseInt(it.id))
-              .filter(n => Number.isFinite(n));
-          }
+        const onTouchEnd = (e) => {
+          if (!pointerDragActive) return;
+          e.preventDefault();
+          finishPointerDrag(true);
+          document.removeEventListener('touchmove', onTouchMove);
+          document.removeEventListener('touchend', onTouchEnd);
+          document.removeEventListener('touchcancel', onTouchEnd);
+        };
 
-          setManualSort();
-          requestAction('Reorder', JSON.stringify({ order: activeIds.concat(completedIds) }));
-        });
+        container.addEventListener('pointerdown', (e) => {
+          const handle = e.target.closest('.drag-handle');
+          if (!handle) return;
 
-        dndBound = true;
-      }
-
-      container.querySelectorAll('.drag-handle').forEach(handle => {
-        handle.addEventListener('dragstart', (e) => {
           const item = handle.closest('.item');
           if (!item) return;
+
+          pointerDragActive = true;
+          pointerDragPointerId = (typeof e.pointerId === 'number') ? e.pointerId : null;
+          pointerDragStartY = e.clientY;
+          pointerDragMoved = false;
+          pointerDragContainer = container;
+
           dragItem = item;
           dragGroup = item.getAttribute('data-group') || '';
           item.classList.add('dragging');
+          dragItemPrevPointerEvents = item.style.pointerEvents;
+          item.style.pointerEvents = 'none';
 
-          if (e.dataTransfer) {
-            e.dataTransfer.effectAllowed = 'move';
-            try {
-              e.dataTransfer.setData('text/plain', item.getAttribute('data-id') || '');
-            } catch (err) {
-            }
-            const ghost = document.createElement('div');
-            ghost.style.width = '1px';
-            ghost.style.height = '1px';
-            ghost.style.opacity = '0.01';
-            document.body.appendChild(ghost);
-            e.dataTransfer.setDragImage(ghost, 0, 0);
-            setTimeout(() => ghost.remove(), 0);
-          }
-        });
+          e.preventDefault();
+          e.stopPropagation();
 
-        handle.addEventListener('dragend', () => {
-          if (dragItem) {
-            dragItem.classList.remove('dragging');
-          }
-          container.querySelectorAll('.item.drag-over').forEach(x => x.classList.remove('drag-over'));
-          dragItem = null;
-          dragGroup = '';
-        });
-      });
+          document.addEventListener('pointermove', onPointerMove, { passive: false });
+          document.addEventListener('pointerup', onPointerUp, { passive: false });
+          document.addEventListener('pointercancel', onPointerUp, { passive: false });
+        }, { passive: false });
+
+        container.addEventListener('mousedown', (e) => {
+          if (pointerDragActive) return;
+          const handle = e.target.closest('.drag-handle');
+          if (!handle) return;
+          if (e.button !== 0) return;
+
+          const item = handle.closest('.item');
+          if (!item) return;
+
+          pointerDragActive = true;
+          pointerDragPointerId = null;
+          pointerDragStartY = e.clientY;
+          pointerDragMoved = false;
+          pointerDragContainer = container;
+
+          dragItem = item;
+          dragGroup = item.getAttribute('data-group') || '';
+          item.classList.add('dragging');
+          dragItemPrevPointerEvents = item.style.pointerEvents;
+          item.style.pointerEvents = 'none';
+
+          e.preventDefault();
+          e.stopPropagation();
+
+          document.addEventListener('mousemove', onMouseMove, { passive: false });
+          document.addEventListener('mouseup', onMouseUp, { passive: false });
+        }, { passive: false });
+
+        container.addEventListener('touchstart', (e) => {
+          if (pointerDragActive) return;
+          const handle = e.target.closest('.drag-handle');
+          if (!handle) return;
+
+          const t = (e.touches && e.touches.length > 0) ? e.touches[0] : null;
+          if (!t) return;
+
+          const item = handle.closest('.item');
+          if (!item) return;
+
+          pointerDragActive = true;
+          pointerDragPointerId = null;
+          pointerDragStartY = t.clientY;
+          pointerDragMoved = false;
+          pointerDragContainer = container;
+
+          dragItem = item;
+          dragGroup = item.getAttribute('data-group') || '';
+          item.classList.add('dragging');
+          dragItemPrevPointerEvents = item.style.pointerEvents;
+          item.style.pointerEvents = 'none';
+
+          e.preventDefault();
+          e.stopPropagation();
+
+          document.addEventListener('touchmove', onTouchMove, { passive: false });
+          document.addEventListener('touchend', onTouchEnd, { passive: false });
+          document.addEventListener('touchcancel', onTouchEnd, { passive: false });
+        }, { passive: false });
+
+        dndBound = true;
+      }
     }
 
     function updateStats() {
@@ -1663,14 +1815,24 @@
         }
 
         if (shoppingMode) {
-          el.addEventListener('click', () => {
+          el.addEventListener('click', (e) => {
+            if (Date.now() < suppressClickUntil) {
+              e.preventDefault();
+              e.stopPropagation();
+              return;
+            }
             const currentDone = (el.getAttribute('data-done') || '0') === '1';
             requestAction('ToggleDone', JSON.stringify({ id: id, done: !currentDone }));
           });
         }
 
         if (handle) {
-          handle.addEventListener('click', (e) => e.stopPropagation());
+          handle.addEventListener('click', (e) => {
+            if (Date.now() < suppressClickUntil) {
+              e.preventDefault();
+            }
+            e.stopPropagation();
+          });
         }
       });
 
