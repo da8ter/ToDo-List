@@ -2,277 +2,25 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/libs/OAuthHelper.php';
+require_once __DIR__ . '/libs/SyncHelper.php';
+require_once __DIR__ . '/libs/CalDAVSync.php';
+require_once __DIR__ . '/libs/GoogleTasksSync.php';
+require_once __DIR__ . '/libs/MicrosoftToDoSync.php';
+
 class ToDoList extends IPSModuleStrict
 {
+    use OAuthHelper;
+    use SyncHelper;
+    use CalDAVSync;
+    use GoogleTasksSync;
+    use MicrosoftToDoSync;
+
     private function GetDefaultHtmlBoxCssBody(): string
     {
-        return trim(<<<CSS
-.tdl-htmlbox {
-  --bg: #333438;
-  --card: #333438;
-  --text: #ffffff;
-  --accent: #00cdab;
-  --radius: 14px;
-  --gap: 12px;
-  --muted: rgba(255, 255, 255, .55);
-  --border: rgba(255, 255, 255, .12);
-}
-
-.wrap {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap);
-  padding: 0;
-  box-sizing: border-box;
-  color: var(--text);
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-}
-
-.stats {
-  display: flex;
-  gap: var(--gap);
-}
-
-.stat-box {
-  flex: 1;
-  padding: 12px 8px;
-  border-radius: var(--radius);
-  background: var(--card);
-  border: 1px solid var(--border);
-  text-align: center;
-}
-
-.stat-box .label {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .5px;
-  margin-bottom: 4px;
-  color: var(--muted);
-}
-
-.stat-box .value {
-  font-size: 28px;
-  font-weight: 700;
-}
-
-.list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.list.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  grid-auto-rows: min-content;
-  align-content: start;
-  gap: 8px;
-}
-
-.list.grid.shopping {
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 6px;
-}
-
-.list.grid .section-header {
-  grid-column: 1 / -1;
-}
-
-.item {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--gap);
-  padding: var(--gap);
-  border-radius: var(--radius);
-  background: var(--card);
-  border: 1px solid var(--border);
-}
-
-.item.done {
-  opacity: .55;
-}
-
-.item .main {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--gap);
-  flex: 1 1 200px;
-  min-width: 0;
-}
-
-.item .content {
-  flex: 1;
-  min-width: 0;
-}
-
-.item .actions {
-  display: flex;
-  align-items: center;
-  gap: calc(var(--gap) / 2);
-  margin-left: auto;
-}
-
-.title {
-  font-weight: 700;
-  font-size: 1em;
-  line-height: 1.2;
-  word-break: break-word;
-}
-
-.done .title {
-  text-decoration: line-through;
-}
-
-.info {
-  color: var(--text);
-  font-size: 12px;
-  line-height: 1.35;
-  margin-top: calc(var(--gap) / 2);
-  opacity: .9;
-  word-break: break-word;
-}
-
-.meta {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.badge {
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  color: var(--muted);
-}
-
-.badge.quantity {
-  border-color: var(--accent);
-  font-weight: 700;
-  color: var(--accent);
-}
-
-.badge.quantity.large-qty {
-  font-size: 25px;
-  line-height: 1;
-  padding: 8px 14px;
-  font-weight: 800;
-}
-
-.quantity-large-wrap {
-  display: flex;
-  justify-content: flex-start;
-  width: 100%;
-  margin-top: calc(var(--gap) / 2);
-}
-
-.badge.due-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.badge.due-badge.due-overdue {
-  border-color: rgb(255, 0, 0);
-  color: var(--text);
-  background-color: rgba(255, 0, 0, .2);
-}
-
-.badge.due-badge.due-today {
-  border-color: #ffa500;
-  color: var(--text);
-  background-color: rgba(255, 165, 0, .2);
-}
-
-.badge.notify-badge {
-  border-color: var(--accent);
-  color: var(--text);
-  background-color: rgba(0, 205, 171, .2);
-}
-
-.badge.recur-badge {
-  border-color: var(--accent);
-  color: var(--text);
-  background-color: rgba(0, 205, 171, .2);
-}
-
-.badge .icon-svg {
-  width: 14px;
-  height: 14px;
-  display: block;
-  fill: currentColor;
-}
-
-.badge.high {
-  border-color: rgb(255, 0, 0);
-  color: var(--text);
-  background-color: rgba(255, 0, 0, .2);
-}
-
-.badge.low {
-  border-color: rgba(200, 200, 200, .25);
-  color: var(--text);
-  background-color: rgba(200, 200, 200, .2);
-}
-
-.badge.normal {
-  border-color: var(--accent);
-  color: var(--text);
-  background-color: rgba(0, 205, 171, .2);
-}
-
-.section-header {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-  padding: 8px 4px 4px;
-  text-transform: uppercase;
-  letter-spacing: .5px;
-}
-
-.list.grid .item {
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  text-align: center;
-  aspect-ratio: 1 / 1;
-  overflow: hidden;
-  min-height: 0;
-}
-
-.list.grid.shopping .item {
-  padding: calc(var(--gap) / 2);
-}
-
-.list.grid .item .main {
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
-}
-
-.list.grid .item .actions {
-  width: 100%;
-  margin-left: 0;
-  justify-content: center;
-}
-
-.list.grid .title {
-  font-size: 1.5em;
-}
-
-.list.grid.shopping .title {
-  font-size: 1.05em;
-}
-
-.list.grid .quantity-large-wrap {
-  justify-content: center;
-  margin-top: var(--gap);
-}
-CSS);
+        $cssPath = __DIR__ . '/assets/default.css';
+        $css = @file_get_contents($cssPath);
+        return is_string($css) ? trim($css) : '';
     }
 
     public function Create(): void
@@ -294,6 +42,52 @@ CSS);
         $this->RegisterPropertyBoolean('HideCompletedTasks', false);
         $this->RegisterPropertyBoolean('DeleteCompletedTasks', false);
         $this->RegisterPropertyString('HtmlBoxCss', '');
+
+        $this->RegisterPropertyString('SyncBackend', 'local');
+
+        $this->RegisterPropertyBoolean('AutoSyncOnChange', false);
+        $this->RegisterPropertyInteger('AutoSyncOnChangeDelay', 3);
+
+        // CalDAV Sync
+        $this->RegisterPropertyBoolean('CalDAVEnabled', false);
+        $this->RegisterPropertyString('CalDAVServerURL', '');
+        $this->RegisterPropertyString('CalDAVUsername', '');
+        $this->RegisterPropertyString('CalDAVPassword', '');
+        $this->RegisterPropertyString('CalDAVCalendarPath', '');
+        $this->RegisterPropertyInteger('CalDAVSyncInterval', 0);
+        $this->RegisterPropertyString('CalDAVConflictMode', 'server_wins');
+        $this->RegisterAttributeInteger('CalDAVLastSync', 0);
+        $this->RegisterAttributeString('CalDAVSyncToken', '');
+        $this->RegisterAttributeString('CalDAVCalendarOptions', '[]');
+
+        // Google Tasks Sync
+        $this->RegisterPropertyBoolean('GoogleTasksEnabled', false);
+        $this->RegisterPropertyString('GoogleClientID', '');
+        $this->RegisterPropertyString('GoogleClientSecret', '');
+        $this->RegisterPropertyString('GoogleTaskListID', '');
+        $this->RegisterPropertyInteger('GoogleSyncInterval', 0);
+        $this->RegisterPropertyString('GoogleConflictMode', 'newest_wins');
+        $this->RegisterAttributeString('GoogleAccessToken', '');
+        $this->RegisterAttributeString('GoogleRefreshToken', '');
+        $this->RegisterAttributeInteger('GoogleTokenExpires', 0);
+        $this->RegisterAttributeInteger('GoogleLastSync', 0);
+        $this->RegisterAttributeString('GooglePendingDeletes', '{}');
+        $this->RegisterAttributeString('GoogleTaskListOptions', '[]');
+
+        $this->RegisterPropertyBoolean('MicrosoftToDoEnabled', false);
+        $this->RegisterPropertyString('MicrosoftClientID', '');
+        $this->RegisterPropertyString('MicrosoftClientSecret', '');
+        $this->RegisterPropertyString('MicrosoftTenant', 'common');
+        $this->RegisterPropertyString('MicrosoftListID', '');
+        $this->RegisterPropertyInteger('MicrosoftSyncInterval', 0);
+        $this->RegisterPropertyString('MicrosoftConflictMode', 'newest_wins');
+        $this->RegisterAttributeString('MicrosoftAccessToken', '');
+        $this->RegisterAttributeString('MicrosoftRefreshToken', '');
+        $this->RegisterAttributeInteger('MicrosoftTokenExpires', 0);
+        $this->RegisterAttributeInteger('MicrosoftLastSync', 0);
+        $this->RegisterAttributeString('MicrosoftPendingDeletes', '{}');
+        $this->RegisterAttributeString('MicrosoftListOptions', '[]');
+
         $this->RegisterAttributeString('Items', '[]');
         $this->RegisterAttributeInteger('NextID', 1);
         $this->RegisterAttributeInteger('LastConfigFormRequest', 0);
@@ -305,6 +99,11 @@ CSS);
 
         $this->RegisterTimer('NotificationTimer', 0, 'TDL_ProcessNotifications($_IPS[\'TARGET\']);');
         $this->RegisterTimer('RecurrenceTimer', 0, 'TDL_ProcessRecurrences($_IPS[\'TARGET\']);');
+        $this->RegisterTimer('CalDAVSyncTimer', 0, 'TDL_CalDAVSync($_IPS[\'TARGET\']);');
+        $this->RegisterTimer('CalDAVOnChangeTimer', 0, 'TDL_CalDAVSyncOnChange($_IPS[\'TARGET\']);');
+        $this->RegisterTimer('GoogleTasksSyncTimer', 0, 'TDL_GoogleTasksSync($_IPS[\'TARGET\']);');
+        $this->RegisterTimer('MicrosoftToDoSyncTimer', 0, 'TDL_MicrosoftToDoSync($_IPS[\'TARGET\']);');
+        $this->RegisterTimer('SyncOnChangeTimer', 0, 'TDL_SyncOnChange($_IPS[\'TARGET\']);');
 
         $this->RegisterVariableInteger('OpenTasks', $this->Translate('Open Tasks'), '', 1);
         $this->RegisterVariableInteger('OverdueTasks', $this->Translate('Overdue'), '', 2);
@@ -315,6 +114,20 @@ CSS);
     public function ApplyChanges(): void
     {
         parent::ApplyChanges();
+
+        @$this->RegisterPropertyBoolean('AutoSyncOnChange', false);
+        @$this->RegisterPropertyInteger('AutoSyncOnChangeDelay', 3);
+        @$this->RegisterTimer('SyncOnChangeTimer', 0, 'TDL_SyncOnChange($_IPS[\'TARGET\']);');
+
+        @$this->RegisterAttributeString('CalDAVPendingDeletes', '{}');
+        @$this->RegisterAttributeInteger('SyncBackendMigrationDone', 0);
+
+        if ($this->EnforceSyncBackend()) {
+            return;
+        }
+
+        $this->RegisterGoogleWebHook();
+        $this->RegisterMicrosoftWebHook();
 
         $leadTime = $this->ReadPropertyInteger('NotificationLeadTime');
         $lastLeadTime = $this->ReadAttributeInteger('LastNotificationLeadTime');
@@ -327,6 +140,9 @@ CSS);
         $this->SetTimerInterval('NotificationTimer', $visuID > 0 ? 60000 : 0);
 
         $this->UpdateRecurrenceTimer();
+        $this->UpdateCalDAVTimer();
+        $this->UpdateGoogleTasksTimer();
+        $this->UpdateMicrosoftToDoTimer();
 
         $itemsTable = $this->ReadPropertyString('ItemsTable');
         $hash = md5($itemsTable);
@@ -355,6 +171,19 @@ CSS);
             $prefill['HtmlBoxCss'] = $this->GetDefaultHtmlBoxCssBody();
         }
 
+        $syncBackend = $this->GetSyncBackend();
+
+        $recurrenceUnitOptions = [
+            ['caption' => $this->Translate('Hours'), 'value' => 'h'],
+            ['caption' => $this->Translate('Days'), 'value' => 'd'],
+            ['caption' => $this->Translate('Weeks'), 'value' => 'w'],
+            ['caption' => $this->Translate('Months'), 'value' => 'm'],
+            ['caption' => $this->Translate('Years'), 'value' => 'y']
+        ];
+        if ($syncBackend === 'microsoft') {
+            $recurrenceUnitOptions = array_values(array_filter($recurrenceUnitOptions, fn($opt) => (string)($opt['value'] ?? '') !== 'h'));
+        }
+
         $form = [
             'values' => $prefill,
             'elements' => [
@@ -370,15 +199,7 @@ CSS);
                     'visible' => false,
                     'width' => '400px',
                     'caption' => $this->Translate('Notification Lead Time'),
-                    'options' => [
-                        ['caption' => $this->Translate('0 minutes'), 'value' => 0],
-                        ['caption' => $this->Translate('5 minutes'), 'value' => 300],
-                        ['caption' => $this->Translate('10 minutes'), 'value' => 600],
-                        ['caption' => $this->Translate('30 minutes'), 'value' => 1800],
-                        ['caption' => $this->Translate('1 hour'), 'value' => 3600],
-                        ['caption' => $this->Translate('5 hours'), 'value' => 18000],
-                        ['caption' => $this->Translate('12 hours'), 'value' => 43200]
-                    ]
+                    'options' => $this->GetNotificationLeadTimeOptions()
                 ],
                 [
                     'type' => 'CheckBox',
@@ -499,15 +320,7 @@ CSS);
                             'add' => 0,
                             'edit' => [
                                 'type' => 'Select',
-                                'options' => [
-                                    ['caption' => $this->Translate('0 minutes'), 'value' => 0],
-                                    ['caption' => $this->Translate('5 minutes'), 'value' => 300],
-                                    ['caption' => $this->Translate('10 minutes'), 'value' => 600],
-                                    ['caption' => $this->Translate('30 minutes'), 'value' => 1800],
-                                    ['caption' => $this->Translate('1 hour'), 'value' => 3600],
-                                    ['caption' => $this->Translate('5 hours'), 'value' => 18000],
-                                    ['caption' => $this->Translate('12 hours'), 'value' => 43200]
-                                ]
+                                'options' => $this->GetNotificationLeadTimeOptions()
                             ]
                         ],
                         [
@@ -559,13 +372,7 @@ CSS);
                             'add' => 'w',
                             'edit' => [
                                 'type' => 'Select',
-                                'options' => [
-                                    ['caption' => $this->Translate('Hours'), 'value' => 'h'],
-                                    ['caption' => $this->Translate('Days'), 'value' => 'd'],
-                                    ['caption' => $this->Translate('Weeks'), 'value' => 'w'],
-                                    ['caption' => $this->Translate('Months'), 'value' => 'm'],
-                                    ['caption' => $this->Translate('Years'), 'value' => 'y']
-                                ]
+                                'options' => $recurrenceUnitOptions
                             ]
                         ],
                         [
@@ -634,7 +441,40 @@ CSS);
                             'rowCount' => 15
                         ]
                     ]
-                ]
+                ],
+
+                [
+                    'type' => 'Select',
+                    'name' => 'SyncBackend',
+                    'caption' => $this->Translate('Synchronization backend'),
+                    'width' => '400px',
+                    'options' => [
+                        ['caption' => $this->Translate('Local only'), 'value' => 'local'],
+                        ['caption' => $this->Translate('CalDAV'), 'value' => 'caldav'],
+                        ['caption' => $this->Translate('Google Tasks'), 'value' => 'google'],
+                        ['caption' => $this->Translate('Microsoft To Do'), 'value' => 'microsoft']
+                    ]
+                ],
+
+                [
+                    'type' => 'CheckBox',
+                    'name' => 'AutoSyncOnChange',
+                    'caption' => $this->Translate('Auto sync after changes'),
+                    'visible' => $syncBackend !== 'local'
+                ],
+                [
+                    'type' => 'NumberSpinner',
+                    'name' => 'AutoSyncOnChangeDelay',
+                    'caption' => $this->Translate('Auto sync delay (seconds)'),
+                    'width' => '200px',
+                    'minimum' => 1,
+                    'maximum' => 60,
+                    'visible' => $syncBackend !== 'local'
+                ],
+
+                $this->GetCalDAVFormElements($syncBackend),
+                $this->GetGoogleTasksFormElements($syncBackend),
+                $this->GetMicrosoftToDoFormElements($syncBackend)
             ]
         ];
 
@@ -766,11 +606,11 @@ CSS);
         return json_encode($debug, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 
-    public function AddItem(array $Item): int
+    public function AddItem(array $Data): int
     {
         $items = $this->LoadItems();
 
-        $title = trim((string)($Item['title'] ?? ''));
+        $title = trim((string)($Data['title'] ?? ''));
         if ($title === '') {
             throw new Exception($this->Translate('Invalid title'));
         }
@@ -779,16 +619,16 @@ CSS);
         $this->WriteAttributeInteger('NextID', $id + 1);
 
         $now = time();
-        $due = (int)($Item['due'] ?? 0);
-        $recurrence = $this->NormalizeRecurrence($Item['recurrence'] ?? 'none', $due);
-        $recurrenceResetLeadTime = $this->NormalizeRecurrenceResetLeadTime($Item['recurrenceResetLeadTime'] ?? 0, $recurrence);
+        $due = (int)($Data['due'] ?? 0);
+        $recurrence = $this->NormalizeRecurrence($Data['recurrence'] ?? 'none', $due);
+        $recurrenceResetLeadTime = $this->NormalizeRecurrenceResetLeadTime($Data['recurrenceResetLeadTime'] ?? 0, $recurrence);
         $recurrenceCustomUnit = 'w';
         $recurrenceCustomValue = 1;
         if ($recurrence === 'custom') {
-            $recurrenceCustomUnit = $this->NormalizeRecurrenceCustomUnit($Item['recurrenceCustomUnit'] ?? null);
-            $recurrenceCustomValue = $this->NormalizeRecurrenceCustomValue($Item['recurrenceCustomValue'] ?? null);
+            $recurrenceCustomUnit = $this->NormalizeRecurrenceCustomUnit($Data['recurrenceCustomUnit'] ?? null);
+            $recurrenceCustomValue = $this->NormalizeRecurrenceCustomValue($Data['recurrenceCustomValue'] ?? null);
         }
-        $notification = (bool)($Item['notification'] ?? false);
+        $notification = (bool)($Data['notification'] ?? false);
         if ($due <= 0) {
             $notification = false;
             $recurrence = 'none';
@@ -797,8 +637,8 @@ CSS);
 
         $defaultLeadTime = $this->NormalizeNotificationLeadTimeDefault((int)$this->ReadPropertyInteger('NotificationLeadTime'));
         $itemLeadTime = $defaultLeadTime;
-        if (array_key_exists('notificationLeadTime', $Item)) {
-            $itemLeadTime = $this->NormalizeNotificationLeadTime($Item['notificationLeadTime'], $defaultLeadTime);
+        if (array_key_exists('notificationLeadTime', $Data)) {
+            $itemLeadTime = $this->NormalizeNotificationLeadTime($Data['notificationLeadTime'], $defaultLeadTime);
         }
 
         if ($due > 0) {
@@ -814,24 +654,29 @@ CSS);
         $newItem = [
             'id'        => $id,
             'title'     => $title,
-            'info'      => (string)($Item['info'] ?? ''),
-            'done'      => (bool)($Item['done'] ?? false),
+            'info'      => (string)($Data['info'] ?? ''),
+            'done'      => (bool)($Data['done'] ?? false),
             'due'       => $due,
             'recurrence' => $recurrence,
             'recurrenceCustomUnit' => $recurrenceCustomUnit,
             'recurrenceCustomValue' => $recurrenceCustomValue,
             'recurrenceResetLeadTime' => $recurrenceResetLeadTime,
-            'priority'  => (string)($Item['priority'] ?? 'normal'),
-            'quantity'  => (int)($Item['quantity'] ?? 0),
+            'priority'  => (string)($Data['priority'] ?? 'normal'),
+            'quantity'  => (int)($Data['quantity'] ?? 0),
             'notification' => $notification,
             'notificationLeadTime' => $itemLeadTime,
             'notifiedFor'  => 0,
             'createdAt' => $now,
-            'updatedAt' => $now
+            'updatedAt' => $now,
+            'localModified' => $now,
+            'caldavUid' => '',
+            'caldavEtag' => '',
+            'caldavSynced' => 0
         ];
 
         array_unshift($items, $newItem);
         $this->SaveItems($items);
+        $this->ScheduleSyncOnChange();
 
         return $id;
     }
@@ -852,8 +697,21 @@ CSS);
             }
 
             if ($deleteCompleted && array_key_exists('done', $Data) && (bool)$Data['done']) {
+                if ($this->GetSyncBackend() === 'google') {
+                    $googleId = (string)($items[$i]['googleTaskId'] ?? '');
+                    if ($googleId !== '' && (int)($items[$i]['googleSynced'] ?? 0) > 0) {
+                        $this->AddGooglePendingDelete($googleId);
+                    }
+                }
+                if ($this->GetSyncBackend() === 'microsoft') {
+                    $msId = (string)($items[$i]['microsoftTaskId'] ?? '');
+                    if ($msId !== '' && (int)($items[$i]['microsoftSynced'] ?? 0) > 0) {
+                        $this->AddMicrosoftPendingDelete($msId);
+                    }
+                }
                 unset($items[$i]);
                 $this->SaveItems(array_values($items));
+                $this->ScheduleSyncOnChange();
                 return;
             }
 
@@ -953,10 +811,12 @@ CSS);
             }
 
             $items[$i]['updatedAt'] = $now;
+            $items[$i]['localModified'] = $now;
             break;
         }
 
         $this->SaveItems($items);
+        $this->ScheduleSyncOnChange();
     }
 
     public function ToggleDone(array $Data): void
@@ -983,8 +843,30 @@ CSS);
 
             $recurrence = (string)($items[$i]['recurrence'] ?? 'none');
             if ($newDone && $deleteCompleted && $this->NormalizeRecurrence($recurrence, (int)($items[$i]['due'] ?? 0)) === 'none') {
+                if ($this->GetSyncBackend() === 'google') {
+                    $googleId = (string)($items[$i]['googleTaskId'] ?? '');
+                    if ($googleId !== '' && (int)($items[$i]['googleSynced'] ?? 0) > 0) {
+                        $this->AddGooglePendingDelete($googleId);
+                    }
+                }
+                if ($this->GetSyncBackend() === 'microsoft') {
+                    $msId = (string)($items[$i]['microsoftTaskId'] ?? '');
+                    if ($msId !== '' && (int)($items[$i]['microsoftSynced'] ?? 0) > 0) {
+                        $this->AddMicrosoftPendingDelete($msId);
+                    }
+                }
+                $uid = (string)($items[$i]['caldavUid'] ?? '');
+                if ($uid !== '' && (int)($items[$i]['caldavSynced'] ?? 0) > 0) {
+                    $pending = json_decode((string)$this->ReadAttributeString('CalDAVPendingDeletes'), true);
+                    if (!is_array($pending)) {
+                        $pending = [];
+                    }
+                    $pending[$uid] = (string)($items[$i]['caldavHref'] ?? '');
+                    $this->WriteAttributeString('CalDAVPendingDeletes', json_encode($pending, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+                }
                 unset($items[$i]);
                 $this->SaveItems(array_values($items));
+                $this->ScheduleSyncOnChange();
                 return;
             }
 
@@ -1006,11 +888,17 @@ CSS);
             if ($oldDone !== $newDone) {
                 $items[$i]['notifiedFor'] = 0;
             }
-            $items[$i]['updatedAt'] = time();
+            $now = time();
+            $items[$i]['updatedAt'] = $now;
+            $items[$i]['localModified'] = $now;
+            if ($newDone) {
+                $items[$i]['doneAt'] = $now;
+            }
             break;
         }
 
         $this->SaveItems($items);
+        $this->ScheduleSyncOnChange();
     }
 
     public function DeleteItem(array $Data): void
@@ -1020,8 +908,46 @@ CSS);
             throw new Exception($this->Translate('Invalid id'));
         }
 
-        $items = array_values(array_filter($this->LoadItems(), fn($it) => (int)($it['id'] ?? 0) !== $id));
+        $items = $this->LoadItems();
+        $deleted = null;
+        for ($i = 0; $i < count($items); $i++) {
+            if (((int)($items[$i]['id'] ?? 0)) !== $id) {
+                continue;
+            }
+            $deleted = $items[$i];
+            unset($items[$i]);
+            break;
+        }
+
+        if (is_array($deleted)) {
+            $uid = (string)($deleted['caldavUid'] ?? '');
+            if ($uid !== '' && (int)($deleted['caldavSynced'] ?? 0) > 0) {
+                $pending = json_decode((string)$this->ReadAttributeString('CalDAVPendingDeletes'), true);
+                if (!is_array($pending)) {
+                    $pending = [];
+                }
+                $pending[$uid] = (string)($deleted['caldavHref'] ?? '');
+                $this->WriteAttributeString('CalDAVPendingDeletes', json_encode($pending, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+            }
+
+            if ($this->GetSyncBackend() === 'google') {
+                $googleId = (string)($deleted['googleTaskId'] ?? '');
+                if ($googleId !== '' && (int)($deleted['googleSynced'] ?? 0) > 0) {
+                    $this->AddGooglePendingDelete($googleId);
+                }
+            }
+
+            if ($this->GetSyncBackend() === 'microsoft') {
+                $msId = (string)($deleted['microsoftTaskId'] ?? '');
+                if ($msId !== '' && (int)($deleted['microsoftSynced'] ?? 0) > 0) {
+                    $this->AddMicrosoftPendingDelete($msId);
+                }
+            }
+        }
+
+        $items = array_values($items);
         $this->SaveItems($items);
+        $this->ScheduleSyncOnChange();
     }
 
     public function Reorder(array $Data): void
@@ -1206,7 +1132,72 @@ CSS);
         }
 
         $this->WriteAttributeInteger('NextID', $nextID);
+
+        $beforeMap = [];
+        foreach ($itemsBefore as $it) {
+            $beforeMap[(int)($it['id'] ?? 0)] = $it;
+        }
+        $afterSet = array_fill_keys($afterIds, true);
+        $pending = json_decode((string)$this->ReadAttributeString('CalDAVPendingDeletes'), true);
+        if (!is_array($pending)) {
+            $pending = [];
+        }
+        foreach ($beforeMap as $bid => $bit) {
+            if (isset($afterSet[$bid])) {
+                continue;
+            }
+            $uid = (string)($bit['caldavUid'] ?? '');
+            if ($uid !== '' && (int)($bit['caldavSynced'] ?? 0) > 0) {
+                $pending[$uid] = (string)($bit['caldavHref'] ?? '');
+            }
+        }
+        $this->WriteAttributeString('CalDAVPendingDeletes', json_encode($pending, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+
         $this->SaveItems($items);
+        $this->ScheduleSyncOnChange();
+    }
+
+    private function ScheduleSyncOnChange(): void
+    {
+        if (!$this->ReadPropertyBoolean('AutoSyncOnChange')) {
+            return;
+        }
+
+        $backend = $this->GetSyncBackend();
+        if ($backend === 'caldav') {
+            $this->ScheduleCalDAVSyncOnChange();
+            return;
+        }
+        if ($backend !== 'google' && $backend !== 'microsoft') {
+            return;
+        }
+
+        $delay = (int)$this->ReadPropertyInteger('AutoSyncOnChangeDelay');
+        if ($delay < 1) {
+            $delay = 1;
+        }
+
+        $this->SetTimerInterval('SyncOnChangeTimer', 0);
+        $this->SetTimerInterval('SyncOnChangeTimer', min(60000, $delay * 1000));
+    }
+
+    public function SyncOnChange(): void
+    {
+        $this->SetTimerInterval('SyncOnChangeTimer', 0);
+
+        if (!$this->ReadPropertyBoolean('AutoSyncOnChange')) {
+            return;
+        }
+
+        $backend = $this->GetSyncBackend();
+        if ($backend === 'google') {
+            $this->GoogleTasksSync();
+            return;
+        }
+        if ($backend === 'microsoft') {
+            $this->MicrosoftToDoSync();
+            return;
+        }
     }
 
     private function DecodeValue(mixed $Value): array
@@ -2032,6 +2023,7 @@ CSS);
         if ($changed) {
             $this->SaveItems($items);
             $this->SendState();
+            $this->ScheduleSyncOnChange();
         }
     }
 
@@ -2317,6 +2309,7 @@ CSS);
             'type'  => 'state',
             'items' => $this->LoadItems(),
             'notificationLeadTimeDefault' => $this->ReadPropertyInteger('NotificationLeadTime'),
+            'syncBackend' => $this->GetSyncBackend(),
             'sortMode' => $sort['mode'],
             'sortDir'  => $sort['dir'],
             'orderVersion' => $this->ReadAttributeInteger('OrderVersion'),
@@ -2332,5 +2325,146 @@ CSS);
             'hideCompletedTasks' => $this->ReadPropertyBoolean('HideCompletedTasks'),
             'deleteCompletedTasks' => $this->ReadPropertyBoolean('DeleteCompletedTasks')
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // CalDAV Synchronization
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private function GetSyncBackend(): string
+    {
+        $backend = (string) $this->ReadPropertyString('SyncBackend');
+        if (!in_array($backend, ['local', 'caldav', 'google', 'microsoft'], true)) {
+            return 'local';
+        }
+        return $backend;
+    }
+
+    private function EnforceSyncBackend(): bool
+    {
+        static $running = false;
+        if ($running) {
+            return false;
+        }
+        $running = true;
+
+        $backend = $this->GetSyncBackend();
+        $calEnabled = $this->ReadPropertyBoolean('CalDAVEnabled');
+        $googleEnabled = $this->ReadPropertyBoolean('GoogleTasksEnabled');
+        $msEnabled = $this->ReadPropertyBoolean('MicrosoftToDoEnabled');
+
+        $migrationDone = (int)$this->ReadAttributeInteger('SyncBackendMigrationDone');
+        if ($migrationDone === 0) {
+            if ($backend === 'local' && ($calEnabled || $googleEnabled || $msEnabled)) {
+                if ($googleEnabled) {
+                    $backend = 'google';
+                } elseif ($msEnabled) {
+                    $backend = 'microsoft';
+                } else {
+                    $backend = 'caldav';
+                }
+            }
+            $this->WriteAttributeInteger('SyncBackendMigrationDone', 1);
+        }
+        $wantCalDAV = $backend === 'caldav';
+        $wantGoogle = $backend === 'google';
+        $wantMicrosoft = $backend === 'microsoft';
+
+        $changed = false;
+        if ($this->ReadPropertyString('SyncBackend') !== $backend) {
+            IPS_SetProperty($this->InstanceID, 'SyncBackend', $backend);
+            $changed = true;
+        }
+        if ($this->ReadPropertyBoolean('CalDAVEnabled') !== $wantCalDAV) {
+            IPS_SetProperty($this->InstanceID, 'CalDAVEnabled', $wantCalDAV);
+            $changed = true;
+        }
+        if ($this->ReadPropertyBoolean('GoogleTasksEnabled') !== $wantGoogle) {
+            IPS_SetProperty($this->InstanceID, 'GoogleTasksEnabled', $wantGoogle);
+            $changed = true;
+        }
+
+        if ($this->ReadPropertyBoolean('MicrosoftToDoEnabled') !== $wantMicrosoft) {
+            IPS_SetProperty($this->InstanceID, 'MicrosoftToDoEnabled', $wantMicrosoft);
+            $changed = true;
+        }
+
+        if ($changed) {
+            IPS_ApplyChanges($this->InstanceID);
+            $running = false;
+            return true;
+        }
+
+        $running = false;
+        return false;
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // HTTP Helpers (used by CalDAV trait)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private function GetHttpHeaderValue(array $Headers, string $Name): string
+    {
+        $needle = strtolower($Name) . ':';
+        foreach ($Headers as $h) {
+            $lh = strtolower($h);
+            if (strpos($lh, $needle) === 0) {
+                return trim(substr($h, strlen($needle)));
+            }
+        }
+        return '';
+    }
+
+    private function GetHttpStatusCode(array $Headers): int
+    {
+        foreach ($Headers as $h) {
+            if (preg_match('/^HTTP\/\d+\.?\d*\s+(\d+)/', $h, $m)) {
+                return (int)$m[1];
+            }
+        }
+        return 0;
+    }
+
+    private function GetLastHttpError(): string
+    {
+        $err = error_get_last();
+        return is_array($err) && isset($err['message']) ? $err['message'] : '';
+    }
+
+    private function GetNextItemID(): int
+    {
+        $nextId = $this->ReadAttributeInteger('NextID');
+        $this->WriteAttributeInteger('NextID', $nextId + 1);
+        return $nextId;
+    }
+
+    public function ProcessHookData(): void
+    {
+        $uri = $_SERVER['REQUEST_URI'] ?? '';
+        $isGoogle = strpos($uri, '/hook/todolist_google/') !== false;
+        $isMicrosoft = strpos($uri, '/hook/todolist_microsoft/') !== false;
+        if (!$isGoogle && !$isMicrosoft) {
+            return;
+        }
+
+        $code = $_GET['code'] ?? '';
+        $error = $_GET['error'] ?? '';
+
+        if ($error !== '') {
+            echo '<html><body><h1>' . $this->Translate('Authorization failed') . '</h1><p>' . htmlspecialchars($error) . '</p></body></html>';
+            return;
+        }
+
+        if ($code === '') {
+            echo '<html><body><h1>' . $this->Translate('Authorization failed') . '</h1><p>' . $this->Translate('Please try again.') . '</p></body></html>';
+            return;
+        }
+
+        $success = $isGoogle ? $this->GoogleHandleCallback($code) : $this->MicrosoftHandleCallback($code);
+        if ($success) {
+            echo '<html><body><h1>' . $this->Translate('Authorization successful') . '</h1><p>' . $this->Translate('You can close this window now.') . '</p><script>setTimeout(function(){window.close();},3000);</script></body></html>';
+        } else {
+            echo '<html><body><h1>' . $this->Translate('Authorization failed') . '</h1><p>' . $this->Translate('Please try again.') . '</p></body></html>';
+        }
     }
 }

@@ -816,22 +816,7 @@
       }
       rec.value = 'none';
 
-      const cu = document.getElementById('recurrenceCustomUnit');
-      cu.innerHTML = '';
-      const cuOpts = [
-        { v: 'h', t: 'Hours' },
-        { v: 'd', t: 'Days' },
-        { v: 'w', t: 'Weeks' },
-        { v: 'm', t: 'Months' },
-        { v: 'y', t: 'Years' }
-      ];
-      for (const o of cuOpts) {
-        const el = document.createElement('option');
-        el.value = o.v;
-        el.textContent = translate(o.t);
-        cu.appendChild(el);
-      }
-      cu.value = 'w';
+      fillRecurrenceCustomUnitOptions();
       document.getElementById('recurrenceCustomValue').value = '1';
 
       const rrl = document.getElementById('recurrenceResetLeadTime');
@@ -907,6 +892,35 @@
 
       document.getElementById('detailHeader').textContent = translate('Details');
       document.getElementById('detailCloseBtn').textContent = translate('Close');
+    }
+
+    function fillRecurrenceCustomUnitOptions() {
+      const cu = document.getElementById('recurrenceCustomUnit');
+      if (!cu) return;
+
+      const prev = String(cu.value || 'w');
+      const isMicrosoft = String(state.syncBackend || '') === 'microsoft';
+
+      cu.innerHTML = '';
+      const cuOpts = [
+        { v: 'h', t: 'Hours' },
+        { v: 'd', t: 'Days' },
+        { v: 'w', t: 'Weeks' },
+        { v: 'm', t: 'Months' },
+        { v: 'y', t: 'Years' }
+      ];
+      for (const o of cuOpts) {
+        if (isMicrosoft && o.v === 'h') {
+          continue;
+        }
+        const el = document.createElement('option');
+        el.value = o.v;
+        el.textContent = translate(o.t);
+        cu.appendChild(el);
+      }
+
+      const hasPrev = Array.from(cu.options).some((o) => String(o.value) === prev);
+      cu.value = hasPrev ? prev : 'w';
     }
 
     function updateSortButtons() {
@@ -1866,6 +1880,7 @@
           lastOrderVersion = ov;
         }
         state = data;
+        fillRecurrenceCustomUnitOptions();
         applyUiVisibility();
         render();
       }

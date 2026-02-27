@@ -1,0 +1,189 @@
+<?php
+
+declare(strict_types=1);
+
+trait SyncHelper
+{
+    private function SyncResetItems(array $IdField, array $EtagField, array $SyncedField, string $LastSyncAttr, string $PendingDeletesAttr): void
+    {
+        $items = $this->LoadItems();
+        $count = 0;
+        foreach ($items as &$item) {
+            $hasId = false;
+            $hasSynced = false;
+            foreach ($IdField as $f) {
+                if (!empty($item[$f])) {
+                    $hasId = true;
+                    break;
+                }
+            }
+            foreach ($SyncedField as $f) {
+                if (($item[$f] ?? 0) > 0) {
+                    $hasSynced = true;
+                    break;
+                }
+            }
+            if ($hasId || $hasSynced) {
+                foreach ($IdField as $f) {
+                    $item[$f] = '';
+                }
+                foreach ($EtagField as $f) {
+                    $item[$f] = '';
+                }
+                foreach ($SyncedField as $f) {
+                    $item[$f] = 0;
+                }
+                $item['localModified'] = time();
+                $count++;
+            }
+        }
+        unset($item);
+        $this->SaveItems($items);
+        $this->WriteAttributeInteger($LastSyncAttr, 0);
+        $this->WriteAttributeString($PendingDeletesAttr, '{}');
+        echo sprintf($this->Translate('%d items reset for re-sync'), $count);
+    }
+
+    private function SyncAddPendingDelete(string $TaskId, string $PendingPrefix, string $PendingDeletesAttr): void
+    {
+        if ($TaskId === '' || strpos($TaskId, $PendingPrefix) === 0) {
+            return;
+        }
+        $pending = json_decode((string)$this->ReadAttributeString($PendingDeletesAttr), true);
+        if (!is_array($pending)) {
+            $pending = [];
+        }
+        $pending[$TaskId] = 1;
+        $this->WriteAttributeString($PendingDeletesAttr, json_encode($pending, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+    }
+
+    private function SyncProcessPendingDeletes(array &$PendingDeletes, callable $DeleteFn, string $DebugLabel): void
+    {
+        foreach ($PendingDeletes as $taskId => $dummy) {
+            if ($DeleteFn($taskId)) {
+                unset($PendingDeletes[$taskId]);
+                $this->SendDebug($DebugLabel, 'Deleted on server: ' . $taskId, 0);
+            }
+        }
+    }
+
+    private function SyncGetStatusLabel(string $RefreshToken, int $LastSync, string $Provider = ''): string
+    {
+        if ($RefreshToken === '') {
+            return $this->Translate('Status') . ': ' . $this->Translate('Not connected');
+        }
+
+        $status = $this->Translate('Status') . ': ' . $this->Translate('Connected');
+        if ($LastSync <= 0) {
+            return $status . ' | ' . $this->Translate('Last sync') . ': ' . $this->Translate('Never');
+        }
+
+        return $status . ' | ' . $this->Translate('Last sync') . ': ' . date('d.m.Y H:i:s', $LastSync);
+    }
+
+    private function SyncScheduleOnChange(string $Backend, string $TimerName): void
+    {
+        if ($this->GetSyncBackend() !== $Backend) {
+            return;
+        }
+
+        $delay = (int)$this->ReadPropertyInteger('AutoSyncOnChangeDelay');
+        if ($delay < 1) {
+            $delay = 1;
+        }
+
+        $this->SetTimerInterval($TimerName, 0);
+        $this->SetTimerInterval($TimerName, min(60000, $delay * 1000));
+    }
+
+    private function SyncUpdateTimer(string $Backend, string $TimerName, int $IntervalMinutes, bool $HasToken = true): void
+    {
+        $enabled = $this->GetSyncBackend() === $Backend;
+        if ($enabled && $IntervalMinutes > 0 && $HasToken) {
+            $this->SetTimerInterval($TimerName, $IntervalMinutes * 60 * 1000);
+        } else {
+            $this->SetTimerInterval($TimerName, 0);
+        }
+    }
+
+    private function SyncApplyServerFields(array &$Local, array $Server, array $FieldMap): void
+    {
+        foreach ($FieldMap as $localField => $serverField) {
+            if ($serverField === null) {
+                continue;
+            }
+            $Local[$localField] = $Server[$serverField] ?? ($Local[$localField] ?? null);
+        }
+    }
+
+    private function SyncHandleDeleteOnComplete(array $Item, string $Backend): void
+    {
+        $syncBackend = $this->GetSyncBackend();
+
+        if ($syncBackend === 'google' && ($Backend === 'google' || $Backend === 'all')) {
+            $googleId = (string)($Item['googleTaskId'] ?? '');
+            if ($googleId !== '' && (int)($Item['googleSynced'] ?? 0) > 0) {
+                $this->SyncAddPendingDelete($googleId, 'pending_', 'GooglePendingDeletes');
+            }
+        }
+
+        if ($syncBackend === 'microsoft' && ($Backend === 'microsoft' || $Backend === 'all')) {
+            $msId = (string)($Item['microsoftTaskId'] ?? '');
+            if ($msId !== '' && (int)($Item['microsoftSynced'] ?? 0) > 0) {
+                $this->SyncAddPendingDelete($msId, 'pending_', 'MicrosoftPendingDeletes');
+            }
+        }
+
+        if ($syncBackend === 'caldav' && ($Backend === 'caldav' || $Backend === 'all')) {
+            $uid = (string)($Item['caldavUid'] ?? '');
+            if ($uid !== '' && (int)($Item['caldavSynced'] ?? 0) > 0) {
+                $pending = json_decode((string)$this->ReadAttributeString('CalDAVPendingDeletes'), true);
+                if (!is_array($pending)) {
+                    $pending = [];
+                }
+                $pending[$uid] = (string)($Item['caldavHref'] ?? '');
+                $this->WriteAttributeString('CalDAVPendingDeletes', json_encode($pending, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+            }
+        }
+    }
+
+    private function SyncPostComplete(): void
+    {
+        $this->UpdateStatistics();
+        $this->UpdateTaskListHtml();
+        $this->SendState();
+    }
+
+    private function GetSyncIntervalOptions(): array
+    {
+        return [
+            ['caption' => $this->Translate('Manual only'), 'value' => 0],
+            ['caption' => $this->Translate('Every 5 minutes'), 'value' => 5],
+            ['caption' => $this->Translate('Every 15 minutes'), 'value' => 15],
+            ['caption' => $this->Translate('Every 30 minutes'), 'value' => 30],
+            ['caption' => $this->Translate('Every hour'), 'value' => 60]
+        ];
+    }
+
+    private function GetConflictModeOptions(): array
+    {
+        return [
+            ['caption' => $this->Translate('Server wins'), 'value' => 'server_wins'],
+            ['caption' => $this->Translate('Local wins'), 'value' => 'local_wins'],
+            ['caption' => $this->Translate('Newest wins'), 'value' => 'newest_wins']
+        ];
+    }
+
+    private function GetNotificationLeadTimeOptions(): array
+    {
+        return [
+            ['caption' => $this->Translate('0 minutes'), 'value' => 0],
+            ['caption' => $this->Translate('5 minutes'), 'value' => 300],
+            ['caption' => $this->Translate('10 minutes'), 'value' => 600],
+            ['caption' => $this->Translate('30 minutes'), 'value' => 1800],
+            ['caption' => $this->Translate('1 hour'), 'value' => 3600],
+            ['caption' => $this->Translate('5 hours'), 'value' => 18000],
+            ['caption' => $this->Translate('12 hours'), 'value' => 43200]
+        ];
+    }
+}
