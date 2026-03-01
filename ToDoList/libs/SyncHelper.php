@@ -147,6 +147,33 @@ trait SyncHelper
         }
     }
 
+    private function SyncHandleListChange(string $PropertyName, string $LastValueAttr, string $LastSyncAttr, string $PendingDeletesAttr, string $DebugLabel, array $ExtraAttrs = []): bool
+    {
+        $current = trim($this->ReadPropertyString($PropertyName));
+        $last = $this->ReadAttributeString($LastValueAttr);
+        $changed = false;
+
+        if ($current !== $last) {
+            if ($last !== '' && $current !== '') {
+                $this->SendDebug($DebugLabel, 'List changed from [' . $last . '] to [' . $current . '] – clearing local items', 0);
+                $this->SaveItems([]);
+                $this->WriteAttributeInteger($LastSyncAttr, 0);
+                $this->WriteAttributeString($PendingDeletesAttr, '{}');
+                foreach ($ExtraAttrs as $attr => $default) {
+                    if (is_int($default)) {
+                        $this->WriteAttributeInteger($attr, $default);
+                    } else {
+                        $this->WriteAttributeString($attr, (string)$default);
+                    }
+                }
+                $changed = true;
+            }
+            $this->WriteAttributeString($LastValueAttr, $current);
+        }
+
+        return $changed;
+    }
+
     private function SyncPostComplete(): void
     {
         $this->UpdateStatistics();

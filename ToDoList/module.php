@@ -59,6 +59,7 @@ class ToDoList extends IPSModuleStrict
         $this->RegisterAttributeInteger('CalDAVLastSync', 0);
         $this->RegisterAttributeString('CalDAVSyncToken', '');
         $this->RegisterAttributeString('CalDAVCalendarOptions', '[]');
+        $this->RegisterAttributeString('LastCalDAVCalendarPath', '');
 
         // Google Tasks Sync
         $this->RegisterPropertyBoolean('GoogleTasksEnabled', false);
@@ -73,6 +74,7 @@ class ToDoList extends IPSModuleStrict
         $this->RegisterAttributeInteger('GoogleLastSync', 0);
         $this->RegisterAttributeString('GooglePendingDeletes', '{}');
         $this->RegisterAttributeString('GoogleTaskListOptions', '[]');
+        $this->RegisterAttributeString('LastGoogleTaskListID', '');
 
         $this->RegisterPropertyBoolean('MicrosoftToDoEnabled', false);
         $this->RegisterPropertyString('MicrosoftClientID', '');
@@ -87,6 +89,7 @@ class ToDoList extends IPSModuleStrict
         $this->RegisterAttributeInteger('MicrosoftLastSync', 0);
         $this->RegisterAttributeString('MicrosoftPendingDeletes', '{}');
         $this->RegisterAttributeString('MicrosoftListOptions', '[]');
+        $this->RegisterAttributeString('LastMicrosoftListID', '');
 
         $this->RegisterAttributeString('Items', '[]');
         $this->RegisterAttributeInteger('NextID', 1);
@@ -139,10 +142,26 @@ class ToDoList extends IPSModuleStrict
         $visuID = $this->ReadPropertyInteger('VisualizationInstanceID');
         $this->SetTimerInterval('NotificationTimer', $visuID > 0 ? 60000 : 0);
 
+        $caldavChanged = $this->SyncHandleListChange('CalDAVCalendarPath', 'LastCalDAVCalendarPath', 'CalDAVLastSync', 'CalDAVPendingDeletes', 'CalDAV', ['CalDAVSyncToken' => '']);
+        $googleChanged = $this->SyncHandleListChange('GoogleTaskListID', 'LastGoogleTaskListID', 'GoogleLastSync', 'GooglePendingDeletes', 'GoogleTasks');
+        $microsoftChanged = $this->SyncHandleListChange('MicrosoftListID', 'LastMicrosoftListID', 'MicrosoftLastSync', 'MicrosoftPendingDeletes', 'MicrosoftToDo');
+
         $this->UpdateRecurrenceTimer();
         $this->UpdateCalDAVTimer();
         $this->UpdateGoogleTasksTimer();
         $this->UpdateMicrosoftToDoTimer();
+
+        $syncBackend = $this->GetSyncBackend();
+        if ($caldavChanged && $syncBackend === 'caldav') {
+            $this->SetTimerInterval('CalDAVOnChangeTimer', 0);
+            $this->SetTimerInterval('CalDAVOnChangeTimer', 2000);
+        } elseif ($googleChanged && $syncBackend === 'google') {
+            $this->SetTimerInterval('SyncOnChangeTimer', 0);
+            $this->SetTimerInterval('SyncOnChangeTimer', 2000);
+        } elseif ($microsoftChanged && $syncBackend === 'microsoft') {
+            $this->SetTimerInterval('SyncOnChangeTimer', 0);
+            $this->SetTimerInterval('SyncOnChangeTimer', 2000);
+        }
 
         $itemsTable = $this->ReadPropertyString('ItemsTable');
         $hash = md5($itemsTable);
@@ -1184,10 +1203,6 @@ class ToDoList extends IPSModuleStrict
     public function SyncOnChange(): void
     {
         $this->SetTimerInterval('SyncOnChangeTimer', 0);
-
-        if (!$this->ReadPropertyBoolean('AutoSyncOnChange')) {
-            return;
-        }
 
         $backend = $this->GetSyncBackend();
         if ($backend === 'google') {
