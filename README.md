@@ -14,8 +14,7 @@ Dieses Modul stellt eine ToDo-Liste für die Tile-Visualisierung bereit.
 - **6. Statusvariablen**
 - **7. PHP-Befehlsreferenz**
 - **8. Benachrichtigungen**
-- **9. CalDAV Synchronisation**
-- **10. Changelog**
+- **9. Synchronisation**
 
 ## 1. Funktionsumfang
 
@@ -102,6 +101,11 @@ Folgende Statusvariablen werden von der Instanz angelegt:
   - Read-only HTML-Ausgabe der Taskliste für IPSView (HTMLBox).
   - Wird bei Änderungen der Tasks sowie bei Änderungen der Sortier-Einstellungen aktualisiert.
 
+Optional kann das CSS der HTMLBox über die Instanz-Eigenschaften angepasst werden.
+
+- **HTMLBox CSS**
+  - Vollständiges CSS für die HTMLBox.
+
 ## 7. PHP-Befehlsreferenz
 
 Die folgenden Funktionen stehen in der Instanz zur Verfügung:
@@ -142,47 +146,12 @@ Benachrichtigung:
 - Type: **Info**
 - TargetID: Instanz-ID der ToDoList
 
-## 9. CalDAV Synchronisation
+## 9. Synchronisation
 
-Das Modul unterstützt die bidirektionale Synchronisation mit CalDAV-Servern (OwnCloud, Nextcloud, etc.) über das VTODO-Format.
+Das Modul unterstützt die bidirektionale Synchronisation mit CalDAV-Servern (OwnCloud, Nextcloud, etc.), Microsoft ToDo und Google Tasks.
 
-### Konfiguration
+Anleitungen zur Konfiguration:
 
-Im Konfigurationsformular unter **"CalDAV Synchronisation"**:
-
-| Eigenschaft | Beschreibung |
-|-------------|--------------|
-| **Aktiviert** | CalDAV-Sync ein-/ausschalten |
-| **Server URL** | Basis-URL des CalDAV-Servers |
-| **Benutzername** | CalDAV-Benutzername |
-| **Passwort** | CalDAV-Passwort |
-| **Kalender-Pfad** | Pfad zum Aufgaben-Kalender |
-| **Sync-Intervall** | Automatische Synchronisation |
-| **Bei Konflikt** | Konfliktauflösung |
-
-Hinweise für **hosted/managed CalDAV**:
-
-- **Server URL** kann je nach Anbieter unterschiedlich sein. Typische Beispiele:
-  - Nextcloud/ownCloud: `https://cloud.example.com/remote.php/dav`
-  - Subdirectory-Installationen: `https://cloud.example.com/nextcloud/remote.php/dav`
-  - Universell (wenn vom Anbieter unterstützt): `https://cloud.example.com/.well-known/caldav`
-- **Kalender-Pfad** kann relativ oder absolut sein:
-  - Relativ (wird an die Server URL angehängt): `calendars/user/tasks/`
-  - Absolut (vom Host-Root): `/remote.php/dav/calendars/user/tasks/`
-
-### PHP-Befehle
-
-- **`CalDAVTestConnection()`** – Testet die Verbindung zum Server
-- **`CalDAVSync()`** – Führt eine manuelle Synchronisation durch
-
-Zusätzlich wird bei aktivem CalDAV nach lokalen Änderungen automatisch eine Synchronisation (kurz verzögert) angestoßen.
-
-## 10. Changelog
-
-### 1.1
-
-- CalDAV-Synchronisation (OwnCloud/Nextcloud)
-
-### 1.0
-
-- Initiale Version
+- [CalDAV Synchronisation](assets/Readme_CalDav_Sync.md)
+- [Google Tasks Synchronisation](assets/Readme_Google_Sync.md)
+- [Microsoft To Do Synchronisation](assets/Readme_Microsoft_Sync.md)
