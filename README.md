@@ -152,6 +152,6 @@ Das Modul unterstützt die bidirektionale Synchronisation mit CalDAV-Servern (Ow
 
 Anleitungen zur Konfiguration:
 
-- [CalDAV Synchronisation](assets/Readme_CalDav_Sync.md)
-- [Google Tasks Synchronisation](assets/Readme_Google_Sync.md)
-- [Microsoft To Do Synchronisation](assets/Readme_Microsoft_Sync.md)
+- [CalDAV Synchronisation](/ToDo-List/assets/Readme_CalDav_Sync.md)
+- [Google Tasks Synchronisation](/ToDo-List/assets/Readme_Google_Sync.md)
+- [Microsoft To Do Synchronisation](/ToDo-List/assets/Readme_Microsoft_Sync.md)
