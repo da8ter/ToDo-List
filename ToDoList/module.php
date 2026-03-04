@@ -14,6 +14,14 @@ class ToDoList extends IPSModuleStrict
     use GoogleTasksSync;
     use MicrosoftToDoSync;
 
+    public function GetCompatibleParents(): string
+    {
+        return json_encode([
+            'type'      => 'connect',
+            'moduleIDs' => ['{E677FE7B-28C9-4124-8B58-8A1FE2657E8D}']
+        ]);
+    }
+
     private function GetGatewayID(): int
     {
         $instance = @IPS_GetInstance($this->InstanceID);
