@@ -2,50 +2,46 @@
 
 ## Voraussetzungen
 
-- Ein CalDAV-kompatibler Server (z.B. Nextcloud, ownCloud, Synology, Baikal)
+- Ein CalDAV-kompatibler Server (z.B. Nextcloud, ownCloud, Synology)
 - Zugangsdaten (Benutzername + Passwort)
-- Ein Aufgaben-Kalender (VTODO-fähig)
+- Der Pfad zum Aufgaben-Kalender (VTODO-fähig)
 
-## Schritt 1: ToDo Gateway konfigurieren
 
-Die CalDAV-Zugangsdaten werden zentral im **ToDo Gateway** verwaltet.
 
-1. Öffne die **ToDo Gateway**-Instanz (wird automatisch mit der ToDoList angelegt)
-2. Im Bereich **CalDAV** eintragen:
-   - **Server URL**: Die Basis-URL des CalDAV-Servers (siehe Tabelle unten)
-   - **Benutzername**: CalDAV-Benutzername
-   - **Passwort**: CalDAV-Passwort
-3. Klicke auf **Übernehmen**
+## Schritt 1: In IP-Symcon konfigurieren
 
-### Server-URL Beispiele
-
-| Server | URL |
-|--------|-----|
-| Nextcloud | `https://cloud.example.com/remote.php/dav` |
-| ownCloud | `https://cloud.example.com/remote.php/dav` |
-| Synology | `https://nas.example.com:5001/caldav` |
-| Baikal | `https://baikal.example.com/dav.php` |
-| iCloud | `https://caldav.icloud.com` |
-
-> **Wichtig:** Die Server URL ist nur der **DAV-Endpunkt**, nicht der vollständige Kalender-Pfad.
+1. Öffne die **ToDoList-Instanz**
+2. Wähle bei **Synchronization backend** → **CalDAV**
+3. Trage **Server URL**, **Benutzername** und **Passwort** ein
+4. Klicke auf **Übernehmen**
 
 ## Schritt 2: Verbindung testen
 
-Klicke im **ToDo Gateway** auf **„Verbindung testen"**:
+Klicke auf **„Verbindung testen"**:
 
-- ✅ **„Connection successful"** → weiter mit Schritt 3
+- ✅ **„Connection successful"** → weiter mit Schritt 4
 - ❌ **„Authentication failed"** → Benutzername/Passwort prüfen
 - ❌ **„Connection failed"** → Server-URL prüfen
 
-## Schritt 3: ToDoList-Instanz konfigurieren
+## Schritt 3: Kalender-Pfad ermitteln
 
-1. Öffne die **ToDoList-Instanz**
-2. Wähle bei **Synchronisations-Backend** → **CalDAV**
-3. Klicke auf **„Kalender suchen"** – die verfügbaren Kalender werden im Dropdown angezeigt
-4. Wähle einen **VTODO**-fähigen Kalender aus dem Dropdown
-5. Klicke auf **Übernehmen**
+### Option A: Automatisch suchen
 
-> Kalender mit **(VTODO)** im Namen unterstützen Aufgaben. Kalender mit **(Events only)** enthalten nur Termine und sind nicht für die Aufgaben-Synchronisation geeignet.
+1. Klicke auf **„Kalender suchen"**
+2. Es werden alle verfügbaren Kalender aufgelistet, z.B.:
+   ```
+   Tasks (VTODO) – calendars/user/tasks/
+   Persönlich (VEVENT) – calendars/user/personal/
+   ```
+3. Kopiere den Pfad eines **VTODO**-fähigen Kalenders
+4. Trage ihn in **Kalender-Pfad** ein
+
+### Option B: Manuell eintragen
+
+Der Kalender-Pfad kann relativ oder absolut sein:
+
+- **Relativ** (wird an die Server-URL angehängt): `calendars/user/tasks/`
+- **Absolut** (vom Host-Root): `/remote.php/dav/calendars/user/tasks/`
 
 ## Schritt 4: Sync aktivieren
 
@@ -71,16 +67,9 @@ Klicke im **ToDo Gateway** auf **„Verbindung testen"**:
 
 ## PHP-Befehle
 
-### ToDo Gateway (Prefix: TGW)
-
 ```php
-TGW_CalDAVTestConnection($id);      // Verbindung testen
-TGW_CalDAVDiscoverCalendars($id);   // Kalender suchen
-```
-
-### ToDoList (Prefix: TDL)
-
-```php
+TDL_CalDAVTestConnection($id);      // Verbindung testen
+TDL_CalDAVDiscoverCalendars($id);   // Kalender suchen
 TDL_CalDAVSync($id);                // Manuell synchronisieren
 TDL_CalDAVResetSync($id);           // Sync-Marker zurücksetzen
 ```
