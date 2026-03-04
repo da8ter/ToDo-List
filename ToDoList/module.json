@@ -7,7 +7,7 @@
     "ToDo List"
   ],
   "url": "",
-  "parentRequirements": [],
+  "parentRequirements": ["{E677FE7B-28C9-4124-8B58-8A1FE2657E8D}"],
   "childRequirements": [],
   "implemented": [],
   "prefix": "TDL"

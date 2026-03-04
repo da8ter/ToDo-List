@@ -148,7 +148,9 @@ Benachrichtigung:
 
 ## 9. Synchronisation
 
-Das Modul unterstützt die bidirektionale Synchronisation mit CalDAV-Servern (OwnCloud, Nextcloud, etc.), Microsoft ToDo und Google Tasks.
+Das Modul unterstützt die bidirektionale Synchronisation mit CalDAV-Servern (ownCloud, Nextcloud, etc.), Microsoft To Do und Google Tasks.
+
+Die Zugangsdaten werden zentral im **ToDo Gateway** (Splitter-Modul) verwaltet. In der ToDoList-Instanz wird nur das Backend, die Liste/der Kalender und die Sync-Einstellungen konfiguriert.
 
 Anleitungen zur Konfiguration:
 
