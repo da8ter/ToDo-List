@@ -1,6 +1,6 @@
 # ToDo List
 
-Dieses Modul stellt eine ToDo-Liste für die Tile-Visualisierung bereit.
+Dieses Modul stellt eine ToDo-Liste für die Tile-Visualisierung bereit. Optional mit Synchronisation für Google Tasks, Microsoft To Do und CalDAV.
 
 ![ToDo List](https://github.com/da8ter/images/blob/main/todo.png)
 
@@ -43,8 +43,9 @@ Dieses Modul stellt eine ToDo-Liste für die Tile-Visualisierung bereit.
 
 ## 3. Installation
 
-1. Repository/Library installieren (Module Control)
-2. Instanz anlegen: **ToDo List**
+1. Repository/Library installieren über das Module Control (https://github.com/da8ter/ToDo-List.git)
+2. Instanz anlegen: **ToDo Gateway** (Zentrale Instanz für die Synchronisation. Bitte auch erstellen wenn keine Synchronisation verwendet wird)
+3. Instanz anlegen: **ToDo List** (Für jede Liste wird eine Instanz benötigt)
 
 ## 4. Konfiguration in IP-Symcon
 
@@ -81,10 +82,7 @@ Dieses Modul stellt eine ToDo-Liste für die Tile-Visualisierung bereit.
 
 ## 5. Visualisierung (Tile/HTML-SDK)
 
-Die Visualisierung wird über `module.html` bereitgestellt (HTML-SDK).
-
 - Die Instanz kann direkt als Kachel eingebunden werden.
-- Änderungen in den Instanz-Einstellungen werden per State-Update an die Visualisierung übertragen.
 
 ## 6. Statusvariablen
 
